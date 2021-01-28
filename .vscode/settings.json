@@ -11,5 +11,5 @@
     ],
     "git.ignoreLimitWarning": true,
     "python.formatting.provider": "none",
-    "python.languageServer": "Microsoft"
+    "python.languageServer": "Pylance"
 }
