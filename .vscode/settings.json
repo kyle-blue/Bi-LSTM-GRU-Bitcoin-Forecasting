@@ -1,0 +1,15 @@
+{
+    "python.pythonPath": "venv/bin/python",
+    // "python.languageServer": "Jedi", // Jedi > vscode lang server
+    "python.jediEnabled": false, // false enables vscode language server (we want mypy)
+    "python.envFile": "${workspaceFolder}/.env",
+    "python.venvPath": "${workspaceFolder}/venv",
+    "python.analysis.cachingLevel": "Library",
+    "python.linting.enabled": true,
+    "mypy.targets": [
+        "./src/"
+    ],
+    "git.ignoreLimitWarning": true,
+    "python.formatting.provider": "none",
+    "python.languageServer": "Microsoft"
+}
