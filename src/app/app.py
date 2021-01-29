@@ -1,3 +1,4 @@
+from numpy.core.numeric import NaN
 import tensorflow as tf
 import numpy as np
 import pandas as pd
@@ -50,10 +51,31 @@ def get_main_dataframe():
 
 
 
+FUTURE_PERIOD = 4 # The look forward period for the future column, used to train the neural network to predict future price
+SEQUENCE_LEN = 100 # The look back period aka the sequence length. e.g if this is 100, the last 100 prices will be used to predict future price
+SYMBOL_TO_PREDICT = "MS" # The current symbol to train the model to base predictions on
+
 def start():
     print("\n\n\n")
 
     main_df = get_main_dataframe()
+
+    ## Add future price column to main_df
+    symbol_data = main_df[f"{SYMBOL_TO_PREDICT}_%_chg"]
+    symbol_data_len = len(symbol_data)
+    future = []
+    for i in range(symbol_data_len):
+        if i >= symbol_data_len - FUTURE_PERIOD:
+            future.append(NaN)
+            continue
+        future.append(sum(symbol_data[i:i + FUTURE_PERIOD])) # Add the sum of the last x % changes
+
+    main_df["future"] = future
+    main_df.dropna(inplace=True)
+
+    ## Add target column to main_df
+    
+
     print(f"MAIN DF")
     print(main_df)
 
