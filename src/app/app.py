@@ -1,11 +1,18 @@
 from typing import Deque
 from numpy.core.numeric import NaN
 import tensorflow as tf
+from tensorflow.python.keras.models import Sequential
+from tensorflow.python.keras.layers import Dense, Dropout, LSTM, BatchNormalization, CuDNNLSTM
+from tensorflow.python.keras.callbacks import TensorBoard, ModelCheckpoint
+import keras as k
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from collections import deque
 import os
+import random
+import time
+
 
 def normalize(arr: np.array):
     max_val = np.max(arr)
@@ -60,17 +67,14 @@ SYMBOL_TO_PREDICT = "GOOG" # The current symbol to train the model to base predi
 # e.g. if this is 0.75, and the FUTURE_PERIOD is 4, 0.75*4 is 3. So the future % change must be 3* the avg abs % change to consider a long or short in the target column
 # The higher the number, the less trades (and less lenient), the lower the number, the more trades (and more lenient)
 ACTION_REQUIREMENT = 0.75
+EPOCHS = 100
+BATCH_SIZE = 64
+NAME = f"{SYMBOL_TO_PREDICT}_60min-SEQ_{SEQUENCE_LEN}-E_{EPOCHS}-F{FUTURE_PERIOD}-A_{ACTION_REQUIREMENT}-v1-{int(time.time())}"
 
 def start():
     print("\n\n\n")
 
     main_df = get_main_dataframe()
-
-    
-
-    ## Create sequences
-    sequences = []
-    cur_sequence: Deque = deque(maxlen=SEQUENCE_LEN)
 
     
     ## Add abs_avg column (avg percent change over last x values)
@@ -116,6 +120,22 @@ def start():
     main_df.drop(columns=["future", "abs_avg"], inplace=True)
 
 
+    ## Create sequences
+    # [
+    #    [[sequence1], target1]
+    #    [[sequence2], target2]
+    # ]
+    sequences: list = [] 
+    cur_sequence: Deque = deque(maxlen=SEQUENCE_LEN)
+    for value in main_df.to_numpy():
+        # Since value is only considered a single value in the sequence (even though itself is an array), to make it a sequence, we encapsulate it in an array so:
+        # sequence1 = [[values1], [values2], [values3]] 
+        cur_sequence.append(value[:-1]) # Append all but target to cur_sequence
+        if len(cur_sequence) == SEQUENCE_LEN:
+            sequences.append([np.array(cur_sequence), value[-1]]) # value[-1] is the target
+
+
+
 
     ##### PREPROCESSING #####
     for col in main_df.columns:
@@ -128,16 +148,48 @@ def start():
             main_df[col] = normalize(main_df[col].values)
     
 
+    random.shuffle(sequences) # Shuffle sequences to avoid order effects on learning
+
+    # TODO: May have to change the way target is calculated to make it more balanced.
+    ##### BALANCING
+    buys, sells, none = [], [], []
+    for seq, target in sequences:
+        if target == 0:
+            none.append([seq, target])
+        if target == 1:
+            buys.append([seq, target])
+        if target == 2:
+            sells.append([seq, target])
+    
+    min_values = min(len(buys), len(sells), len(none))
+    buys = buys[:min_values]
+    sells = sells[:min_values]
+    none = none[:min_values]
+
+    sequences = buys + sells + none
+    random.shuffle(sequences)
+
+    train_x = []
+    train_y = []
+    for seq, target in sequences:
+        train_x.append(seq)
+        train_y.append(target)
+    
+    train_x = np.array(train_x)
+
+
+    ### Compile / Train the model
+
+    model = Sequential()
+ 
 
     print(f"\n\nMAIN DF FOR {SYMBOL_TO_PREDICT}")
     print(main_df)
 
 
-    # dataset_labels = pd.read_csv(f"{data_folder}/aapl_intraday-60min_historical-data-01-27-2021.csv", usecols=[0])
-    # dataset_values = pd.read_csv(f"{data_folder}/aapl_intraday-60min_historical-data-01-27-2021.csv", usecols=[1])
-
-
-
+    print(f"Number of buys: {train_y.count(1)}")
+    print(f"Number of sells: {train_y.count(2)}")
+    print(f"Number of none: {train_y.count(0)}")
 
 
     # dataset_values = normalize(dataset_values)
