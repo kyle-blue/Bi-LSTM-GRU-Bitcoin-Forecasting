@@ -4,7 +4,6 @@ import tensorflow as tf
 from tensorflow.python.keras.models import Sequential
 from tensorflow.python.keras.layers import Dense, Dropout, LSTM, BatchNormalization, CuDNNLSTM
 from tensorflow.python.keras.callbacks import TensorBoard, ModelCheckpoint
-import keras as k
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -19,6 +18,9 @@ def normalize(arr: np.array):
     for x in np.nditer(arr, op_flags=['readwrite']):
         x[...] = x / max_val
     return arr
+
+
+
 
 
 def get_main_dataframe():
@@ -56,6 +58,71 @@ def get_main_dataframe():
     
     pd.to_pickle(main_df, f"{PICKLE_FOLDER}/{PICKLE_NAME}") # Save df to avoid future processing
     return main_df
+
+
+
+
+
+
+## @returns train_x and train_y
+def preprocess_df(df: pd.DataFrame):
+    ## Create sequences
+    # [
+    #    [[sequence1], target1]
+    #    [[sequence2], target2]
+    # ]
+    sequences: list = [] 
+    cur_sequence: Deque = deque(maxlen=SEQUENCE_LEN)
+    for value in df.to_numpy():
+        # Since value is only considered a single value in the sequence (even though itself is an array), to make it a sequence, we encapsulate it in an array so:
+        # sequence1 = [[values1], [values2], [values3]] 
+        cur_sequence.append(value[:-1]) # Append all but target to cur_sequence
+        if len(cur_sequence) == SEQUENCE_LEN:
+            sequences.append([np.array(cur_sequence), value[-1]]) # value[-1] is the target
+
+
+    ##### PREPROCESSING #####
+    for col in df.columns:
+        if "volume" in col: 
+            ## Change volumes into percent change also
+            df[col] = df[col].pct_change()
+            df.dropna(inplace=True)
+        if col != "target":
+            ## Normalise all data (except target price)
+            df[col] = normalize(df[col].values)
+    
+
+    random.shuffle(sequences) # Shuffle sequences to avoid order effects on learning
+
+    # TODO: May have to change the way target is calculated to make it more balanced.
+    ##### BALANCING
+    buys, sells, none = [], [], []
+    for seq, target in sequences:
+        if target == 0:
+            none.append([seq, target])
+        if target == 1:
+            buys.append([seq, target])
+        if target == 2:
+            sells.append([seq, target])
+    
+    min_values = min(len(buys), len(sells), len(none))
+    buys = buys[:min_values]
+    sells = sells[:min_values]
+    none = none[:min_values]
+
+    sequences = buys + sells + none
+    random.shuffle(sequences)
+
+    train_x = []
+    train_y = []
+    for seq, target in sequences:
+        train_x.append(seq)
+        train_y.append(target)
+    
+    train_x = np.array(train_x)
+    return train_x, train_y
+
+
 
 
 
@@ -119,89 +186,81 @@ def start():
     ## Remove future price and abs_avg column, we don't need them anymore
     main_df.drop(columns=["future", "abs_avg"], inplace=True)
 
+    ## Split validation and training set
+    times = sorted(main_df.index.values)
+    last_slice = sorted(main_df.index.values)[-int(0.1*len(times))]
 
-    ## Create sequences
-    # [
-    #    [[sequence1], target1]
-    #    [[sequence2], target2]
-    # ]
-    sequences: list = [] 
-    cur_sequence: Deque = deque(maxlen=SEQUENCE_LEN)
-    for value in main_df.to_numpy():
-        # Since value is only considered a single value in the sequence (even though itself is an array), to make it a sequence, we encapsulate it in an array so:
-        # sequence1 = [[values1], [values2], [values3]] 
-        cur_sequence.append(value[:-1]) # Append all but target to cur_sequence
-        if len(cur_sequence) == SEQUENCE_LEN:
-            sequences.append([np.array(cur_sequence), value[-1]]) # value[-1] is the target
+    validation_main_df = main_df[(main_df.index >= last_slice)]
+    main_df = main_df[(main_df.index < last_slice)]
+
+    train_x, train_y = preprocess_df(main_df)
+    validation_x, validation_y = preprocess_df(validation_main_df)
 
 
 
-
-    ##### PREPROCESSING #####
-    for col in main_df.columns:
-        if "volume" in col: 
-            ## Change volumes into percent change also
-            main_df[col] = main_df[col].pct_change()
-            main_df.dropna(inplace=True)
-        if col != "target":
-            ## Normalise all data (except target price)
-            main_df[col] = normalize(main_df[col].values)
-    
-
-    random.shuffle(sequences) # Shuffle sequences to avoid order effects on learning
-
-    # TODO: May have to change the way target is calculated to make it more balanced.
-    ##### BALANCING
-    buys, sells, none = [], [], []
-    for seq, target in sequences:
-        if target == 0:
-            none.append([seq, target])
-        if target == 1:
-            buys.append([seq, target])
-        if target == 2:
-            sells.append([seq, target])
-    
-    min_values = min(len(buys), len(sells), len(none))
-    buys = buys[:min_values]
-    sells = sells[:min_values]
-    none = none[:min_values]
-
-    sequences = buys + sells + none
-    random.shuffle(sequences)
-
-    train_x = []
-    train_y = []
-    for seq, target in sequences:
-        train_x.append(seq)
-        train_y.append(target)
-    
-    train_x = np.array(train_x)
-
-
-    ### Compile / Train the model
-
-    model = Sequential()
  
 
     print(f"\n\nMAIN DF FOR {SYMBOL_TO_PREDICT}")
     print(main_df)
 
 
-    print(f"Number of buys: {train_y.count(1)}")
-    print(f"Number of sells: {train_y.count(2)}")
-    print(f"Number of none: {train_y.count(0)}")
+    print(f"Training - Number of buys: {train_y.count(1)}")
+    print(f"Training - Number of sells: {train_y.count(2)}")
+    print(f"Training - Number of none: {train_y.count(0)}")
+
+    print(f"Validation - Number of buys: {validation_y.count(1)}")
+    print(f"Validation - Number of sells: {validation_y.count(2)}")
+    print(f"Validation - Number of none: {validation_y.count(0)}")
 
 
-    # dataset_values = normalize(dataset_values)
-    # dataset = tf.data.Dataset.from_tensor_slices((dataset_values, dataset_labels))
+    ##### Compile / Train the model ###
+    
+    model = Sequential()
+    model.add(LSTM(128, input_shape=(train_x.shape[1:]), return_sequences=True))
+    model.add(Dropout(0.2))
+    model.add(BatchNormalization())
 
-    # test_set = dataset.take(1000)
-    # train_set = dataset.skip(1000)
+    model.add(LSTM(128, return_sequences=True))
+    model.add(Dropout(0.1))
+    model.add(BatchNormalization())
 
-    # model = tf.keras.models.Sequential()
-    # model.add(tf.keras.layers.LSTM(4))
-    # model.add(tf.keras.layers.Dense(1, activation="sigmoid"))
-    # model.compile(loss='mean_squared_error', optimizer='adam')
-    # model.fit(train_set, epochs=100, verbose=2)
-    # plt.plot(dataset)
-    # plt.show()
+    model.add(LSTM(128))
+    model.add(Dropout(0.2))
+    model.add(BatchNormalization())
+
+    model.add(Dense(32, activation='relu'))
+    model.add(Dropout(0.2))
+
+    model.add(Dense(3, activation='softmax'))
+
+
+    opt = tf.keras.optimizers.Adam(lr=0.001, decay=1e-6)
+
+    # Compile model
+    model.compile(
+        loss='sparse_categorical_crossentropy',
+        optimizer=opt,
+        metrics=['accuracy']
+    )
+
+    tensorboard = TensorBoard(log_dir="logs/{}".format(NAME))
+
+    filepath = "RNN_Final-{epoch:02d}-{val_acc:.3f}"  # unique file name that will include the epoch and the validation acc for that epoch
+    checkpoint = ModelCheckpoint("models/{}.model".format(filepath, monitor='val_acc', verbose=1, save_best_only=True, mode='max')) # saves only the best ones
+
+    # Train model
+    history = model.fit(
+        train_x, train_y,
+        batch_size=BATCH_SIZE,
+        epochs=EPOCHS,
+        validation_data=(validation_x, validation_y),
+        callbacks=[tensorboard, checkpoint],
+    )
+
+    # Score model
+    score = model.evaluate(validation_x, validation_y, verbose=0)
+    print('Test loss:', score[0])
+    print('Test accuracy:', score[1])
+    # Save model
+    model.save("models/{}".format(NAME))
+
