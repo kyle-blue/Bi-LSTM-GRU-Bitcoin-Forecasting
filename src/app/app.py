@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Deque
 from numpy.core.numeric import NaN
 import tensorflow as tf
@@ -15,20 +16,21 @@ import time
 
 def normalize(arr: np.array):
     max_val = np.max(arr)
+    min_val = np.min(arr)
+    max_val -= min_val
     for x in np.nditer(arr, op_flags=['readwrite']):
+        x[...] = x - min_val
         x[...] = x / max_val
     return arr
-
-
-
 
 
 def get_main_dataframe():
     PICKLE_NAME = "data.pkl"
     PICKLE_FOLDER = f'{os.environ["WORKSPACE"]}/state/data'
 
-    data_folder = f'{os.environ["WORKSPACE"]}/data/normal_hours/hourly'
-    symbols = [x[:-4] for x in os.listdir(data_folder)] # Remove .csv file extension from strings
+    data_folder = f'{os.environ["WORKSPACE"]}/data/extended_hours/5min'
+    symbols = set([x[:-4] for x in os.listdir(data_folder)]) # Remove .csv file extension from strings
+    
     
 
     if PICKLE_NAME in os.listdir(PICKLE_FOLDER):
@@ -61,7 +63,50 @@ def get_main_dataframe():
 
 
 
+def add_target(df: pd.DataFrame):
+    ## Add abs_avg column (avg percent change over last x values)
+    ## The abs_avg is the absolute average % change over last x values
+    avgs = []
+    symbol_data = df[f"{SYMBOL_TO_PREDICT}_%_chg"]
+    symbol_data_len = len(symbol_data)
+    for i in range(symbol_data_len):
+        if i < SEQUENCE_LEN:
+            avgs.append(NaN)
+            continue
+        avgs.append(sum([abs(x) for x in symbol_data[i - SEQUENCE_LEN: i]]) / SEQUENCE_LEN)        
 
+    df["abs_avg"] = avgs
+    df.dropna(inplace=True)
+
+
+    ## Add future price column to main_df
+    future = []
+    symbol_data = df[f"{SYMBOL_TO_PREDICT}_%_chg"]
+    symbol_data_len = len(symbol_data)
+    for i in range(symbol_data_len):
+        if i >= symbol_data_len - FUTURE_PERIOD:
+            future.append(NaN)
+            continue
+        future.append(sum(symbol_data[i:i + FUTURE_PERIOD])) # Add the sum of the last x % changes
+
+    df["future"] = future
+    df.dropna(inplace=True)
+
+    ## Add target column to main_df
+    targets = []
+    for i in range(len(df)):
+        multiplier_requirement = FUTURE_PERIOD * ACTION_REQUIREMENT
+        if abs(df["future"][i]) > (multiplier_requirement * df["abs_avg"][i]):
+            targets.append(1 if df["future"][i] >= 0 else 2) # Long trade target if positive, short trade target of negative
+        else:
+            targets.append(0)
+    df["target"] = targets
+    df.dropna(inplace=True)
+
+    ## Remove future price and abs_avg column, we don't need them anymore
+    df.drop(columns=["future", "abs_avg"], inplace=True)
+
+    return df
 
 
 ## @returns train_x and train_y
@@ -123,86 +168,52 @@ def preprocess_df(df: pd.DataFrame):
     return train_x, train_y
 
 
+def get_datasets(df: pd.DataFrame):
+    ## Split validation and training set
+    times = sorted(df.index.values)
+    last_slice = sorted(df.index.values)[-int(0.1*len(times))]
+
+    validation_df = df[(df.index >= last_slice)]
+    df = df[(df.index < last_slice)]
+
+    train_x, train_y = preprocess_df(df)
+    validation_x, validation_y = preprocess_df(validation_df)
+
+    print(f"\n\nMAIN DF FOR {SYMBOL_TO_PREDICT}")
+    print(df.head(15))
+
+    return train_x, train_y, validation_x, validation_y
 
 
 
 
-FUTURE_PERIOD = 4 # The look forward period for the future column, used to train the neural network to predict future price
-SEQUENCE_LEN = 100 # The look back period aka the sequence length. e.g if this is 100, the last 100 prices will be used to predict future price
-SYMBOL_TO_PREDICT = "GOOG" # The current symbol to train the model to base predictions on
+FUTURE_PERIOD = 5 # The look forward period for the future column, used to train the neural network to predict future price
+SEQUENCE_LEN = 150 # The look back period aka the sequence length. e.g if this is 100, the last 100 prices will be used to predict future price
+SYMBOL_TO_PREDICT = "TSLA" # The current symbol to train the model to base predictions on
 # The requirement for action (long or short) to be taken on a trade.
 # e.g. if this is 0.75, and the FUTURE_PERIOD is 4, 0.75*4 is 3. So the future % change must be 3* the avg abs % change to consider a long or short in the target column
 # The higher the number, the less trades (and less lenient), the lower the number, the more trades (and more lenient)
 ACTION_REQUIREMENT = 0.75
-EPOCHS = 100
+EPOCHS = 50
 BATCH_SIZE = 64
-NAME = f"{SYMBOL_TO_PREDICT}_60min-SEQ_{SEQUENCE_LEN}-E_{EPOCHS}-F{FUTURE_PERIOD}-A_{ACTION_REQUIREMENT}-v1-{int(time.time())}"
+NAME = f"{SYMBOL_TO_PREDICT}_5min-SEQ_{SEQUENCE_LEN}-E_{EPOCHS}-F{FUTURE_PERIOD}-A_{ACTION_REQUIREMENT}-v1-{int(time.time())}"
 
 def start():
     print("\n\n\n")
 
     main_df = get_main_dataframe()
 
+    # Add day column to dataframe
+    days, hours = [], []
+    for time in main_df.index:
+        days.append(float(time.weekday()))
+        hours.append(float(time.hour))
+    main_df["day"] = days
+    main_df["hour"] = hours
     
-    ## Add abs_avg column (avg percent change over last x values)
-    ## The abs_avg is the absolute average % change over last x values
-    avgs = []
-    symbol_data = main_df[f"{SYMBOL_TO_PREDICT}_%_chg"]
-    symbol_data_len = len(symbol_data)
-    for i in range(symbol_data_len):
-        if i < SEQUENCE_LEN:
-            avgs.append(NaN)
-            continue
-        avgs.append(sum([abs(x) for x in symbol_data[i - SEQUENCE_LEN: i]]) / SEQUENCE_LEN)        
+    main_df = add_target(main_df)
 
-    main_df["abs_avg"] = avgs
-    main_df.dropna(inplace=True)
-
-
-    ## Add future price column to main_df
-    future = []
-    symbol_data = main_df[f"{SYMBOL_TO_PREDICT}_%_chg"]
-    symbol_data_len = len(symbol_data)
-    for i in range(symbol_data_len):
-        if i >= symbol_data_len - FUTURE_PERIOD:
-            future.append(NaN)
-            continue
-        future.append(sum(symbol_data[i:i + FUTURE_PERIOD])) # Add the sum of the last x % changes
-
-    main_df["future"] = future
-    main_df.dropna(inplace=True)
-
-    ## Add target column to main_df
-    targets = []
-    for i in range(len(main_df)):
-        multiplier_requirement = FUTURE_PERIOD * ACTION_REQUIREMENT
-        if abs(main_df["future"][i]) > (multiplier_requirement * main_df["abs_avg"][i]):
-            targets.append(1 if main_df["future"][i] >= 0 else 2) # Long trade target if positive, short trade target of negative
-        else:
-            targets.append(0)
-    main_df["target"] = targets
-    main_df.dropna(inplace=True)
-
-    ## Remove future price and abs_avg column, we don't need them anymore
-    main_df.drop(columns=["future", "abs_avg"], inplace=True)
-
-    ## Split validation and training set
-    times = sorted(main_df.index.values)
-    last_slice = sorted(main_df.index.values)[-int(0.1*len(times))]
-
-    validation_main_df = main_df[(main_df.index >= last_slice)]
-    main_df = main_df[(main_df.index < last_slice)]
-
-    train_x, train_y = preprocess_df(main_df)
-    validation_x, validation_y = preprocess_df(validation_main_df)
-
-
-
- 
-
-    print(f"\n\nMAIN DF FOR {SYMBOL_TO_PREDICT}")
-    print(main_df)
-
+    train_x, train_y, validation_x, validation_y = get_datasets(main_df)
 
     print(f"Training - Number of buys: {train_y.count(1)}")
     print(f"Training - Number of sells: {train_y.count(2)}")
@@ -216,22 +227,17 @@ def start():
     ##### Compile / Train the model ###
     
     model = Sequential()
-    model.add(LSTM(128, input_shape=(train_x.shape[1:]), return_sequences=True))
-    model.add(Dropout(0.2))
+    model.add(LSTM(64, input_shape=(train_x.shape[1:]), return_sequences=True))
     model.add(BatchNormalization())
 
-    model.add(LSTM(128, return_sequences=True))
-    model.add(Dropout(0.1))
+    model.add(LSTM(64, return_sequences=True))
+    model.add(BatchNormalization())
+    
+    model.add(LSTM(64))
     model.add(BatchNormalization())
 
-    model.add(LSTM(128))
-    model.add(Dropout(0.2))
-    model.add(BatchNormalization())
-
-    model.add(Dense(32, activation='relu'))
-    model.add(Dropout(0.2))
-
-    model.add(Dense(3, activation='softmax'))
+    # model.add(Dense(32, activation='relu'))
+    model.add(Dense(3, activation='sigmoid'))
 
 
     opt = tf.keras.optimizers.Adam(lr=0.001, decay=1e-6)
@@ -262,5 +268,5 @@ def start():
     print('Test loss:', score[0])
     print('Test accuracy:', score[1])
     # Save model
-    model.save("models/{}".format(NAME))
+    model.save(f"models/{NAME}")
 
