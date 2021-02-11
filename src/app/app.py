@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Deque
-from numpy.core.numeric import NaN
+from numpy.core.numeric import Inf, NaN
 import tensorflow as tf
 from tensorflow.python.keras.models import Sequential
 from tensorflow.python.keras.layers import Dense, Dropout, LSTM, BatchNormalization, CuDNNLSTM
@@ -14,15 +14,11 @@ import random
 import time
 
 
-def normalize(arr: np.array):
-    max_val = np.max(arr)
-    min_val = np.min(arr)
-    max_val -= min_val
-    for x in np.nditer(arr, op_flags=['readwrite']):
-        x[...] = x - min_val
-        x[...] = x / max_val
-    return arr
+def normalize(arr: np.array, col: str):
+    mean = np.mean(arr)
+    std = np.std(arr)
 
+    return (arr - mean) / std
 
 def get_main_dataframe():
     PICKLE_NAME = "data.pkl"
@@ -32,7 +28,6 @@ def get_main_dataframe():
     symbols = set([x[:-4] for x in os.listdir(data_folder)]) # Remove .csv file extension from strings
     
     
-
     if PICKLE_NAME in os.listdir(PICKLE_FOLDER):
         main_df = pd.read_pickle(f"{PICKLE_FOLDER}/{PICKLE_NAME}")
         print("Found existing dataframe, checking if it has correct number of columns (2x the number of symbols [1 for %_chg and 1 for volume])")
@@ -66,20 +61,20 @@ def get_main_dataframe():
 def add_target(df: pd.DataFrame):
     ## Add abs_avg column (avg percent change over last x values)
     ## The abs_avg is the absolute average % change over last x values
-    avgs = []
-    symbol_data = df[f"{SYMBOL_TO_PREDICT}_%_chg"]
-    symbol_data_len = len(symbol_data)
-    for i in range(symbol_data_len):
-        if i < SEQUENCE_LEN:
-            avgs.append(NaN)
-            continue
-        avgs.append(sum([abs(x) for x in symbol_data[i - SEQUENCE_LEN: i]]) / SEQUENCE_LEN)        
+    # avgs = []
+    # symbol_data = df[f"{SYMBOL_TO_PREDICT}_%_chg"]
+    # symbol_data_len = len(symbol_data)
+    # for i in range(symbol_data_len):
+    #     if i < SEQUENCE_LEN:
+    #         avgs.append(NaN)
+    #         continue
+    #     avgs.append(sum([abs(x) for x in symbol_data[i - SEQUENCE_LEN: i]]) / SEQUENCE_LEN)        
 
-    df["abs_avg"] = avgs
-    df.dropna(inplace=True)
+    # df["abs_avg"] = avgs
+    # df.dropna(inplace=True)
 
 
-    ## Add future price column to main_df
+    ## Add future price column to main_df (which is now the target)
     future = []
     symbol_data = df[f"{SYMBOL_TO_PREDICT}_%_chg"]
     symbol_data_len = len(symbol_data)
@@ -89,22 +84,22 @@ def add_target(df: pd.DataFrame):
             continue
         future.append(sum(symbol_data[i:i + FUTURE_PERIOD])) # Add the sum of the last x % changes
 
-    df["future"] = future
+    df["target"] = future
     df.dropna(inplace=True)
 
     ## Add target column to main_df
-    targets = []
-    for i in range(len(df)):
-        multiplier_requirement = FUTURE_PERIOD * ACTION_REQUIREMENT
-        if abs(df["future"][i]) > (multiplier_requirement * df["abs_avg"][i]):
-            targets.append(1 if df["future"][i] >= 0 else 2) # Long trade target if positive, short trade target of negative
-        else:
-            targets.append(0)
-    df["target"] = targets
-    df.dropna(inplace=True)
+    # targets = []
+    # for i in range(len(df)):
+    #     multiplier_requirement = FUTURE_PERIOD * ACTION_REQUIREMENT
+    #     if abs(df["future"][i]) > (multiplier_requirement * df["abs_avg"][i]):
+    #         targets.append(1 if df["future"][i] >= 0 else 2) # Long trade target if positive, short trade target of negative
+    #     else:
+    #         targets.append(0)
+    # df["target"] = targets
+    # df.dropna(inplace=True)
 
-    ## Remove future price and abs_avg column, we don't need them anymore
-    df.drop(columns=["future", "abs_avg"], inplace=True)
+    # ## Remove future price and abs_avg column, we don't need them anymore
+    # df.drop(columns=["future", "abs_avg"], inplace=True)
 
     return df
 
@@ -116,6 +111,7 @@ def preprocess_df(df: pd.DataFrame):
     #    [[sequence1], target1]
     #    [[sequence2], target2]
     # ]
+    
     sequences: list = [] 
     cur_sequence: Deque = deque(maxlen=SEQUENCE_LEN)
     for value in df.to_numpy():
@@ -124,39 +120,39 @@ def preprocess_df(df: pd.DataFrame):
         cur_sequence.append(value[:-1]) # Append all but target to cur_sequence
         if len(cur_sequence) == SEQUENCE_LEN:
             sequences.append([np.array(cur_sequence), value[-1]]) # value[-1] is the target
-
-
+    
+    df.drop_duplicates(inplace=True)
     ##### PREPROCESSING #####
     for col in df.columns:
         if "volume" in col: 
             ## Change volumes into percent change also
             df[col] = df[col].pct_change()
+            df.replace([np.inf, -np.inf], np.nan, inplace=True)
             df.dropna(inplace=True)
         if col != "target":
             ## Normalise all data (except target price)
-            df[col] = normalize(df[col].values)
+            df[col] = normalize(df[col].values, col)
     
-
     random.shuffle(sequences) # Shuffle sequences to avoid order effects on learning
 
     # TODO: May have to change the way target is calculated to make it more balanced.
     ##### BALANCING
-    buys, sells, none = [], [], []
-    for seq, target in sequences:
-        if target == 0:
-            none.append([seq, target])
-        if target == 1:
-            buys.append([seq, target])
-        if target == 2:
-            sells.append([seq, target])
+    # buys, sells, none = [], [], []
+    # for seq, target in sequences:
+    #     if target == 0:
+    #         none.append([seq, target])
+    #     if target == 1:
+    #         buys.append([seq, target])
+    #     if target == 2:
+    #         sells.append([seq, target])
     
-    min_values = min(len(buys), len(sells), len(none))
-    buys = buys[:min_values]
-    sells = sells[:min_values]
-    none = none[:min_values]
+    # min_values = min(len(buys), len(sells), len(none))
+    # buys = buys[:min_values]
+    # sells = sells[:min_values]
+    # none = none[:min_values]
 
-    sequences = buys + sells + none
-    random.shuffle(sequences)
+    # sequences = buys + sells + none
+    # random.shuffle(sequences)
 
     train_x = []
     train_y = []
@@ -188,7 +184,7 @@ def get_datasets(df: pd.DataFrame):
 
 
 FUTURE_PERIOD = 5 # The look forward period for the future column, used to train the neural network to predict future price
-SEQUENCE_LEN = 150 # The look back period aka the sequence length. e.g if this is 100, the last 100 prices will be used to predict future price
+SEQUENCE_LEN = 5 # The look back period aka the sequence length. e.g if this is 100, the last 100 prices will be used to predict future price
 SYMBOL_TO_PREDICT = "TSLA" # The current symbol to train the model to base predictions on
 # The requirement for action (long or short) to be taken on a trade.
 # e.g. if this is 0.75, and the FUTURE_PERIOD is 4, 0.75*4 is 3. So the future % change must be 3* the avg abs % change to consider a long or short in the target column
@@ -215,13 +211,8 @@ def start():
 
     train_x, train_y, validation_x, validation_y = get_datasets(main_df)
 
-    print(f"Training - Number of buys: {train_y.count(1)}")
-    print(f"Training - Number of sells: {train_y.count(2)}")
-    print(f"Training - Number of none: {train_y.count(0)}")
-
-    print(f"Validation - Number of buys: {validation_y.count(1)}")
-    print(f"Validation - Number of sells: {validation_y.count(2)}")
-    print(f"Validation - Number of none: {validation_y.count(0)}")
+    print(f"Training total: {len(train_y)}")
+    print(f"Validation total: {len(validation_y)}")
 
 
     ##### Compile / Train the model ###
@@ -237,22 +228,22 @@ def start():
     model.add(BatchNormalization())
 
     # model.add(Dense(32, activation='relu'))
-    model.add(Dense(3, activation='sigmoid'))
+    model.add(Dense(1))
 
 
     opt = tf.keras.optimizers.Adam(lr=0.001, decay=1e-6)
 
     # Compile model
     model.compile(
-        loss='sparse_categorical_crossentropy',
+        loss='mse',
         optimizer=opt,
-        metrics=['accuracy']
+        metrics=['mse', "mae"]
     )
 
     tensorboard = TensorBoard(log_dir="logs/{}".format(NAME))
 
-    filepath = "RNN_Final-{epoch:02d}-{val_acc:.3f}"  # unique file name that will include the epoch and the validation acc for that epoch
-    checkpoint = ModelCheckpoint("models/{}.model".format(filepath, monitor='val_acc', verbose=1, save_best_only=True, mode='max')) # saves only the best ones
+    filepath = "RNN_Final-{epoch:02d}-{val_mean_absolute_error:.3f}"  # unique file name that will include the epoch and the validation acc for that epoch
+    checkpoint = ModelCheckpoint(f"models/{filepath}.model", monitor="val_mean_absolute_error", verbose=1, save_best_only=True, mode='max') # saves only the best ones
 
     # Train model
     history = model.fit(

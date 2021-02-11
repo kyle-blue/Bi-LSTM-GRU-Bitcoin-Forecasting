@@ -1,6 +1,8 @@
 ##### Tensorflow Stuff #####
 models/*.model
 logs/*
+!logs/.temp
+!models/final
 
 
 ###### PYTHON STUFF #######
