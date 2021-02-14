@@ -13,6 +13,8 @@ import os
 import random
 import time
 
+from app.test_model import test_model
+
 
 def normalize(arr: np.array, col: str):
     mean = np.mean(arr)
@@ -161,6 +163,7 @@ def preprocess_df(df: pd.DataFrame):
         train_y.append(target)
     
     train_x = np.array(train_x)
+    train_y = np.array(train_y)
     return train_x, train_y
 
 
@@ -184,18 +187,41 @@ def get_datasets(df: pd.DataFrame):
 
 
 FUTURE_PERIOD = 5 # The look forward period for the future column, used to train the neural network to predict future price
-SEQUENCE_LEN = 5 # The look back period aka the sequence length. e.g if this is 100, the last 100 prices will be used to predict future price
+SEQUENCE_LEN = 150 # The look back period aka the sequence length. e.g if this is 100, the last 100 prices will be used to predict future price
 SYMBOL_TO_PREDICT = "TSLA" # The current symbol to train the model to base predictions on
 # The requirement for action (long or short) to be taken on a trade.
 # e.g. if this is 0.75, and the FUTURE_PERIOD is 4, 0.75*4 is 3. So the future % change must be 3* the avg abs % change to consider a long or short in the target column
 # The higher the number, the less trades (and less lenient), the lower the number, the more trades (and more lenient)
 ACTION_REQUIREMENT = 0.75
 EPOCHS = 50
-BATCH_SIZE = 64
+BATCH_SIZE = 2048
 NAME = f"{SYMBOL_TO_PREDICT}_5min-SEQ_{SEQUENCE_LEN}-E_{EPOCHS}-F{FUTURE_PERIOD}-A_{ACTION_REQUIREMENT}-v1-{int(time.time())}"
 
 def start():
+    ## Only allocate required GPU space
+    config = tf.compat.v1.ConfigProto()
+    config.gpu_options.allow_growth = True
+    session = tf.compat.v1.Session(config=config)
+
     print("\n\n\n")
+    print("Please choose an option:")
+    print("1. Train a new model")
+    print("2. Test an existing model")
+    is_valid = False
+    while not is_valid:
+        inp = int(input())
+        if inp == 1:
+            train_model()
+            is_valid = True
+        if inp == 2:
+            test_model()
+            is_valid = True
+        if not is_valid:
+            print("Please choose a valid option...")
+
+    
+
+def train_model():
 
     main_df = get_main_dataframe()
 
@@ -214,20 +240,18 @@ def start():
     print(f"Training total: {len(train_y)}")
     print(f"Validation total: {len(validation_y)}")
 
-
     ##### Compile / Train the model ###
     
     model = Sequential()
-    model.add(LSTM(64, input_shape=(train_x.shape[1:]), return_sequences=True))
+    model.add(CuDNNLSTM(32, input_shape=(train_x.shape[1:]), return_sequences=True))
     model.add(BatchNormalization())
 
-    model.add(LSTM(64, return_sequences=True))
-    model.add(BatchNormalization())
-    
-    model.add(LSTM(64))
-    model.add(BatchNormalization())
+    HIDDEN_LAYERS = 3
+    for i in range(HIDDEN_LAYERS):
+        return_sequences = i != HIDDEN_LAYERS - 1 # False on last iter
+        model.add(CuDNNLSTM(32, return_sequences=return_sequences))
+        model.add(BatchNormalization())
 
-    # model.add(Dense(32, activation='relu'))
     model.add(Dense(1))
 
 
@@ -240,10 +264,14 @@ def start():
         metrics=['mse', "mae"]
     )
 
+    json_config = model.to_json()
+    with open(f'{os.environ["WORKSPACE"]}/model_config/model_config.json', "w+") as file:
+        file.write(json_config)
+
     tensorboard = TensorBoard(log_dir="logs/{}".format(NAME))
 
-    filepath = "RNN_Final-{epoch:02d}-{val_mean_absolute_error:.3f}"  # unique file name that will include the epoch and the validation acc for that epoch
-    checkpoint = ModelCheckpoint(f"models/{filepath}.model", monitor="val_mean_absolute_error", verbose=1, save_best_only=True, mode='max') # saves only the best ones
+    filepath = "RNN_Final-{epoch:02d}-{val_loss:.3f}"  # unique file name that will include the epoch and the validation acc for that epoch
+    checkpoint = ModelCheckpoint(f"models/{filepath}.model.h5", monitor="val_loss", verbose=1, save_best_only=True, mode='max', save_weights_only=True) # saves only the best ones
 
     # Train model
     history = model.fit(
@@ -259,5 +287,5 @@ def start():
     print('Test loss:', score[0])
     print('Test accuracy:', score[1])
     # Save model
-    model.save(f"models/{NAME}")
+    model.save_weights(f"models/final/{NAME}.h5")
 
