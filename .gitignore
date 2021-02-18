@@ -1,5 +1,5 @@
 ##### Tensorflow Stuff #####
-models/*.model
+models/*.h5
 logs/*
 !logs/.temp
 !models/final

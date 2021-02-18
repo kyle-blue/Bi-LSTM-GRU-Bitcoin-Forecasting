@@ -17,13 +17,10 @@ from app.test_model import test_model
 
 
 def normalize(arr: np.array, col: str):
-    mean = np.mean(arr)
-    std = np.std(arr)
-
-    return (arr - mean) / std
+    return (arr - np.mean(arr)) / np.std(arr)
 
 def get_main_dataframe():
-    PICKLE_NAME = "data.pkl"
+    PICKLE_NAME = "dataframe.pkl"
     PICKLE_FOLDER = f'{os.environ["WORKSPACE"]}/state/data'
 
     data_folder = f'{os.environ["WORKSPACE"]}/data/extended_hours/5min'
@@ -60,21 +57,17 @@ def get_main_dataframe():
 
 
 
-def add_target(df: pd.DataFrame):
-    ## Add abs_avg column (avg percent change over last x values)
-    ## The abs_avg is the absolute average % change over last x values
-    # avgs = []
-    # symbol_data = df[f"{SYMBOL_TO_PREDICT}_%_chg"]
-    # symbol_data_len = len(symbol_data)
-    # for i in range(symbol_data_len):
-    #     if i < SEQUENCE_LEN:
-    #         avgs.append(NaN)
-    #         continue
-    #     avgs.append(sum([abs(x) for x in symbol_data[i - SEQUENCE_LEN: i]]) / SEQUENCE_LEN)        
-
-    # df["abs_avg"] = avgs
-    # df.dropna(inplace=True)
-
+def add_derived_data(df: pd.DataFrame):
+    # Add day column to dataframe
+    days, hours, minutes = [], [], []
+    for time in df.index:
+        days.append(float(time.weekday()))
+        hours.append(float(time.hour))
+        minutes.append(float(time.minute))
+    df["day"] = days
+    df["hour"] = hours
+    df["minute"] = hours
+    
 
     ## Add future price column to main_df (which is now the target)
     future = []
@@ -88,20 +81,6 @@ def add_target(df: pd.DataFrame):
 
     df["target"] = future
     df.dropna(inplace=True)
-
-    ## Add target column to main_df
-    # targets = []
-    # for i in range(len(df)):
-    #     multiplier_requirement = FUTURE_PERIOD * ACTION_REQUIREMENT
-    #     if abs(df["future"][i]) > (multiplier_requirement * df["abs_avg"][i]):
-    #         targets.append(1 if df["future"][i] >= 0 else 2) # Long trade target if positive, short trade target of negative
-    #     else:
-    #         targets.append(0)
-    # df["target"] = targets
-    # df.dropna(inplace=True)
-
-    # ## Remove future price and abs_avg column, we don't need them anymore
-    # df.drop(columns=["future", "abs_avg"], inplace=True)
 
     return df
 
@@ -137,25 +116,6 @@ def preprocess_df(df: pd.DataFrame):
     
     random.shuffle(sequences) # Shuffle sequences to avoid order effects on learning
 
-    # TODO: May have to change the way target is calculated to make it more balanced.
-    ##### BALANCING
-    # buys, sells, none = [], [], []
-    # for seq, target in sequences:
-    #     if target == 0:
-    #         none.append([seq, target])
-    #     if target == 1:
-    #         buys.append([seq, target])
-    #     if target == 2:
-    #         sells.append([seq, target])
-    
-    # min_values = min(len(buys), len(sells), len(none))
-    # buys = buys[:min_values]
-    # sells = sells[:min_values]
-    # none = none[:min_values]
-
-    # sequences = buys + sells + none
-    # random.shuffle(sequences)
-
     train_x = []
     train_y = []
     for seq, target in sequences:
@@ -167,16 +127,50 @@ def preprocess_df(df: pd.DataFrame):
     return train_x, train_y
 
 
-def get_datasets(df: pd.DataFrame):
+def get_datasets():
+    FILE_NAMES = ["train_x.npy", "train_y.npy", "validation_x.npy", "validation_y.npy"]
+    STATE_FOLDER = f'{os.environ["WORKSPACE"]}/state/data'
+    
+    ### Check for existing training data
+    dir_items = os.listdir(STATE_FOLDER)
+    if all([x in dir_items for x in FILE_NAMES]):
+        print("\n\nFound an training and validation data. Please select an option:")
+        print("1. Use existing data")
+        print("2. Generate new data")
+        is_valid_input = False
+        while not is_valid_input:
+            user_input = int(input())
+            if user_input == 1:
+                is_valid_input = True
+                print("Using existing data...")
+                train_x = np.load(f"{STATE_FOLDER}/{FILE_NAMES[0]}")
+                train_y = np.load(f"{STATE_FOLDER}/{FILE_NAMES[1]}")
+                validation_x = np.load(f"{STATE_FOLDER}/{FILE_NAMES[2]}")
+                validation_y = np.load(f"{STATE_FOLDER}/{FILE_NAMES[3]}")
+                return train_x, train_y, validation_x, validation_y
+            if user_input == 2:
+                print("Generating new arrays of sequences for training...")
+                is_valid_input = True
+    
+    df = get_main_dataframe()
+    df = add_derived_data(df)
+
     ## Split validation and training set
     times = sorted(df.index.values)
-    last_slice = sorted(df.index.values)[-int(0.1*len(times))]
+    last_slice = sorted(df.index.values)[-int(0.2*len(times))]
 
     validation_df = df[(df.index >= last_slice)]
     df = df[(df.index < last_slice)]
 
+    ## Preprocess
     train_x, train_y = preprocess_df(df)
     validation_x, validation_y = preprocess_df(validation_df)
+
+    ## Save data to PKL files
+    np.save(f"{STATE_FOLDER}/{FILE_NAMES[0]}", train_x)
+    np.save(f"{STATE_FOLDER}/{FILE_NAMES[1]}", train_y)
+    np.save(f"{STATE_FOLDER}/{FILE_NAMES[2]}", validation_x)
+    np.save(f"{STATE_FOLDER}/{FILE_NAMES[3]}", validation_y)
 
     print(f"\n\nMAIN DF FOR {SYMBOL_TO_PREDICT}")
     print(df.head(15))
@@ -186,16 +180,12 @@ def get_datasets(df: pd.DataFrame):
 
 
 
-FUTURE_PERIOD = 5 # The look forward period for the future column, used to train the neural network to predict future price
-SEQUENCE_LEN = 150 # The look back period aka the sequence length. e.g if this is 100, the last 100 prices will be used to predict future price
+FUTURE_PERIOD = 50 # The look forward period for the future column, used to train the neural network to predict future price
+SEQUENCE_LEN = 300 # The look back period aka the sequence length. e.g if this is 100, the last 100 prices will be used to predict future price
 SYMBOL_TO_PREDICT = "TSLA" # The current symbol to train the model to base predictions on
-# The requirement for action (long or short) to be taken on a trade.
-# e.g. if this is 0.75, and the FUTURE_PERIOD is 4, 0.75*4 is 3. So the future % change must be 3* the avg abs % change to consider a long or short in the target column
-# The higher the number, the less trades (and less lenient), the lower the number, the more trades (and more lenient)
-ACTION_REQUIREMENT = 0.75
-EPOCHS = 50
-BATCH_SIZE = 2048
-NAME = f"{SYMBOL_TO_PREDICT}_5min-SEQ_{SEQUENCE_LEN}-E_{EPOCHS}-F{FUTURE_PERIOD}-A_{ACTION_REQUIREMENT}-v1-{int(time.time())}"
+EPOCHS = 300
+BATCH_SIZE = 800
+NAME = f"{SYMBOL_TO_PREDICT}_5min-SEQ_{SEQUENCE_LEN}-E_{EPOCHS}-F{FUTURE_PERIOD}-v1-{int(time.time())}"
 
 def start():
     ## Only allocate required GPU space
@@ -223,19 +213,7 @@ def start():
 
 def train_model():
 
-    main_df = get_main_dataframe()
-
-    # Add day column to dataframe
-    days, hours = [], []
-    for time in main_df.index:
-        days.append(float(time.weekday()))
-        hours.append(float(time.hour))
-    main_df["day"] = days
-    main_df["hour"] = hours
-    
-    main_df = add_target(main_df)
-
-    train_x, train_y, validation_x, validation_y = get_datasets(main_df)
+    train_x, train_y, validation_x, validation_y = get_datasets()
 
     print(f"Training total: {len(train_y)}")
     print(f"Validation total: {len(validation_y)}")
@@ -243,24 +221,24 @@ def train_model():
     ##### Compile / Train the model ###
     
     model = Sequential()
-    model.add(CuDNNLSTM(32, input_shape=(train_x.shape[1:]), return_sequences=True))
+    model.add(CuDNNLSTM(128, input_shape=(train_x.shape[1:]), return_sequences=True))
     model.add(BatchNormalization())
 
-    HIDDEN_LAYERS = 3
+    HIDDEN_LAYERS = 6
     for i in range(HIDDEN_LAYERS):
         return_sequences = i != HIDDEN_LAYERS - 1 # False on last iter
-        model.add(CuDNNLSTM(32, return_sequences=return_sequences))
+        model.add(CuDNNLSTM(128, return_sequences=return_sequences))
         model.add(BatchNormalization())
 
     model.add(Dense(1))
 
 
-    opt = tf.keras.optimizers.Adam(lr=0.001, decay=1e-6)
+    # opt = tf.keras.optimizers.Adam(lr=0.003, decay=1e-6)
 
     # Compile model
     model.compile(
         loss='mse',
-        optimizer=opt,
+        optimizer="adam",
         metrics=['mse', "mae"]
     )
 
@@ -270,8 +248,8 @@ def train_model():
 
     tensorboard = TensorBoard(log_dir="logs/{}".format(NAME))
 
-    filepath = "RNN_Final-{epoch:02d}-{val_loss:.3f}"  # unique file name that will include the epoch and the validation acc for that epoch
-    checkpoint = ModelCheckpoint(f"models/{filepath}.model.h5", monitor="val_loss", verbose=1, save_best_only=True, mode='max', save_weights_only=True) # saves only the best ones
+    filepath = "RNN_Final-{epoch:02d}-{val_mae:.3f}"  # unique file name that will include the epoch and the validation acc for that epoch
+    checkpoint = ModelCheckpoint(f"models/{filepath}.model.h5", monitor="val_mae", verbose=1, save_best_only=True, mode='min', save_weights_only=True) # saves only the best ones
 
     # Train model
     history = model.fit(
@@ -288,4 +266,5 @@ def train_model():
     print('Test accuracy:', score[1])
     # Save model
     model.save_weights(f"models/final/{NAME}.h5")
+
 
