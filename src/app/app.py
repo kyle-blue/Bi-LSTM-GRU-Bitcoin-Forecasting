@@ -16,6 +16,14 @@ import time
 from app.test_model import test_model
 
 
+FUTURE_PERIOD = 25 # The look forward period for the future column, used to train the neural network to predict future price
+SEQUENCE_LEN = 90 # The look back period aka the sequence length. e.g if this is 100, the last 100 prices will be used to predict future price
+SYMBOL_TO_PREDICT = "TSLA" # The current symbol to train the model to base predictions on
+EPOCHS = 50 # Epochs per training fold (we are doing 10 fold cross validation)
+BATCH_SIZE = 2048
+NAME = f"{SYMBOL_TO_PREDICT}_5min-SEQ_{SEQUENCE_LEN}-E_{EPOCHS}-F{FUTURE_PERIOD}-v1-{int(time.time())}"
+
+
 def normalize(arr: np.array, col: str):
     return (arr - np.mean(arr)) / np.std(arr)
 
@@ -23,7 +31,7 @@ def get_main_dataframe():
     PICKLE_NAME = "dataframe.pkl"
     PICKLE_FOLDER = f'{os.environ["WORKSPACE"]}/state/data'
 
-    data_folder = f'{os.environ["WORKSPACE"]}/data/extended_hours/5min'
+    data_folder = f'{os.environ["WORKSPACE"]}/data/normal_hours/1min'
     symbols = set([x[:-4] for x in os.listdir(data_folder)]) # Remove .csv file extension from strings
     
     
@@ -62,11 +70,11 @@ def add_derived_data(df: pd.DataFrame):
     days, hours, minutes = [], [], []
     for time in df.index:
         days.append(float(time.weekday()))
-        hours.append(float(time.hour))
-        minutes.append(float(time.minute))
+        # hours.append(float(time.hour))
+        minutes.append(float(time.minute) + (float(time.hour) * 60))
     df["day"] = days
-    df["hour"] = hours
-    df["minute"] = hours
+    # df["hour"] = hours
+    df["minute"] = minutes
     
 
     ## Add future price column to main_df (which is now the target)
@@ -95,12 +103,20 @@ def preprocess_df(df: pd.DataFrame):
     
     sequences: list = [] 
     cur_sequence: Deque = deque(maxlen=SEQUENCE_LEN)
+    minute_index = df.columns.get_loc("minute")
+    target_index = df.columns.get_loc("target")
+    min_minute = df["minute"].min() # Minute for start of day
+    max_minute = df["minute"].max() # Minute for end of day
     for value in df.to_numpy():
         # Since value is only considered a single value in the sequence (even though itself is an array), to make it a sequence, we encapsulate it in an array so:
         # sequence1 = [[values1], [values2], [values3]] 
-        cur_sequence.append(value[:-1]) # Append all but target to cur_sequence
+        if value[minute_index] >= max_minute - FUTURE_PERIOD:
+            continue
+        if value[minute_index] == min_minute:
+            cur_sequence.clear() # Only allowed full sequences
+        cur_sequence.append(value[:target_index]) # Append all but target to cur_sequence
         if len(cur_sequence) == SEQUENCE_LEN:
-            sequences.append([np.array(cur_sequence), value[-1]]) # value[-1] is the target
+            sequences.append([np.array(cur_sequence), value[target_index]]) # value[-1] is the target
     
     df.drop_duplicates(inplace=True)
     ##### PREPROCESSING #####
@@ -157,7 +173,7 @@ def get_datasets():
 
     ## Split validation and training set
     times = sorted(df.index.values)
-    last_slice = sorted(df.index.values)[-int(0.2*len(times))]
+    last_slice = sorted(df.index.values)[-int(0.1*len(times))]
 
     validation_df = df[(df.index >= last_slice)]
     df = df[(df.index < last_slice)]
@@ -180,12 +196,7 @@ def get_datasets():
 
 
 
-FUTURE_PERIOD = 50 # The look forward period for the future column, used to train the neural network to predict future price
-SEQUENCE_LEN = 300 # The look back period aka the sequence length. e.g if this is 100, the last 100 prices will be used to predict future price
-SYMBOL_TO_PREDICT = "TSLA" # The current symbol to train the model to base predictions on
-EPOCHS = 20 # Epochs per training fold (we are doing 10 fold cross validation)
-BATCH_SIZE = 2048
-NAME = f"{SYMBOL_TO_PREDICT}_5min-SEQ_{SEQUENCE_LEN}-E_{EPOCHS}-F{FUTURE_PERIOD}-v1-{int(time.time())}"
+
 
 def start():
     ## Only allocate required GPU space
