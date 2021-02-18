@@ -11,18 +11,19 @@ import matplotlib.pyplot as plt
 from collections import deque
 import os
 import random
-import time
 
 from app.test_model import test_model
 
 
 FUTURE_PERIOD = 25 # The look forward period for the future column, used to train the neural network to predict future price
-SEQUENCE_LEN = 90 # The look back period aka the sequence length. e.g if this is 100, the last 100 prices will be used to predict future price
+SEQUENCE_LEN = 120 # The look back period aka the sequence length. e.g if this is 100, the last 100 prices will be used to predict future price
 SYMBOL_TO_PREDICT = "TSLA" # The current symbol to train the model to base predictions on
-EPOCHS = 50 # Epochs per training fold (we are doing 10 fold cross validation)
-BATCH_SIZE = 2048
-NAME = f"{SYMBOL_TO_PREDICT}_5min-SEQ_{SEQUENCE_LEN}-E_{EPOCHS}-F{FUTURE_PERIOD}-v1-{int(time.time())}"
-
+EPOCHS = 10 # Epochs per training fold (we are doing 10 fold cross validation)
+BATCH_SIZE = 1500
+HIDDEN_LAYERS = 4
+NEURONS_PER_LAYER = 64
+SEQ_INFO = f"{SYMBOL_TO_PREDICT}-1min-SeqLen{SEQUENCE_LEN}-Forward{FUTURE_PERIOD}"
+MODEL_INFO = f"HidLayers{HIDDEN_LAYERS}-Neurons{NEURONS_PER_LAYER}"
 
 def normalize(arr: np.array, col: str):
     return (arr - np.mean(arr)) / np.std(arr)
@@ -232,13 +233,13 @@ def train_model():
     ##### Compile / Train the model ###
     
     model = Sequential()
-    model.add(CuDNNLSTM(32, input_shape=(train_x.shape[1:]), return_sequences=True))
+    model.add(CuDNNLSTM(NEURONS_PER_LAYER, input_shape=(train_x.shape[1:]), return_sequences=True))
     model.add(BatchNormalization())
 
-    HIDDEN_LAYERS = 4
+    
     for i in range(HIDDEN_LAYERS):
         return_sequences = i != HIDDEN_LAYERS - 1 # False on last iter
-        model.add(CuDNNLSTM(32, return_sequences=return_sequences))
+        model.add(CuDNNLSTM(NEURONS_PER_LAYER, return_sequences=return_sequences))
         model.add(BatchNormalization())
 
     model.add(Dense(1))
@@ -254,13 +255,13 @@ def train_model():
     )
 
     json_config = model.to_json()
-    with open(f'{os.environ["WORKSPACE"]}/model_config/model_config.json', "w+") as file:
+    with open(f'{os.environ["WORKSPACE"]}/model_config/{MODEL_INFO}.json', "w+") as file:
         file.write(json_config)
 
-    tensorboard = TensorBoard(log_dir="logs/{}".format(NAME))
+    tensorboard = TensorBoard(log_dir=f"logs/{SEQ_INFO}__{MODEL_INFO}")
 
-    filepath = "RNN_Final-{epoch:02d}-{val_mae:.3f}"  # unique file name that will include the epoch and the validation acc for that epoch
-    checkpoint = ModelCheckpoint(f"models/{filepath}.model.h5", monitor="val_mae", verbose=1, save_best_only=True, mode='min', save_weights_only=True) # saves only the best ones
+    filepath = f"{SEQ_INFO}__{MODEL_INFO}__" + "{epoch:02d}-{val_mae:.3f}"  # unique file name that will include the epoch and the validation acc for that epoch
+    checkpoint = ModelCheckpoint(f"models/{filepath}.h5", monitor="val_mae", verbose=1, save_best_only=True, mode='min', save_weights_only=True) # saves only the best ones
 
     # Train model
     history = model.fit(
@@ -273,9 +274,8 @@ def train_model():
 
     # Score model
     score = model.evaluate(validation_x, validation_y, verbose=0)
-    print('Test loss:', score[0])
-    print('Test accuracy:', score[1])
+    print('Scores:', score)
     # Save model
-    model.save_weights(f"models/final/{NAME}.h5")
+    model.save_weights(f"models/final/{SEQ_INFO}__{MODEL_INFO}__{EPOCHS}-{score[2]:.3f}.h5")
 
 
