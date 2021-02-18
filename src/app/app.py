@@ -183,8 +183,8 @@ def get_datasets():
 FUTURE_PERIOD = 50 # The look forward period for the future column, used to train the neural network to predict future price
 SEQUENCE_LEN = 300 # The look back period aka the sequence length. e.g if this is 100, the last 100 prices will be used to predict future price
 SYMBOL_TO_PREDICT = "TSLA" # The current symbol to train the model to base predictions on
-EPOCHS = 300
-BATCH_SIZE = 800
+EPOCHS = 20 # Epochs per training fold (we are doing 10 fold cross validation)
+BATCH_SIZE = 2048
 NAME = f"{SYMBOL_TO_PREDICT}_5min-SEQ_{SEQUENCE_LEN}-E_{EPOCHS}-F{FUTURE_PERIOD}-v1-{int(time.time())}"
 
 def start():
@@ -221,13 +221,13 @@ def train_model():
     ##### Compile / Train the model ###
     
     model = Sequential()
-    model.add(CuDNNLSTM(128, input_shape=(train_x.shape[1:]), return_sequences=True))
+    model.add(CuDNNLSTM(32, input_shape=(train_x.shape[1:]), return_sequences=True))
     model.add(BatchNormalization())
 
-    HIDDEN_LAYERS = 6
+    HIDDEN_LAYERS = 4
     for i in range(HIDDEN_LAYERS):
         return_sequences = i != HIDDEN_LAYERS - 1 # False on last iter
-        model.add(CuDNNLSTM(128, return_sequences=return_sequences))
+        model.add(CuDNNLSTM(32, return_sequences=return_sequences))
         model.add(BatchNormalization())
 
     model.add(Dense(1))
