@@ -5,30 +5,33 @@ import tensorflow as tf
 from tensorflow.python.keras.models import Sequential
 from tensorflow.python.keras.layers import Dense, Dropout, LSTM, BatchNormalization, CuDNNLSTM
 from tensorflow.python.keras.callbacks import TensorBoard, ModelCheckpoint
+import tensorflow.python.keras.backend as K
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from collections import deque
 import os
 import random
+from app.extreme_mae import extreme_mae
 
 from app.test_model import test_model
 
 ### SEQ INFO
 INTERVAL = "5min"
 SYMBOL_TO_PREDICT = "TSLA" # The current symbol to train the model to base predictions on
-FUTURE_PERIOD = 50 # The look forward period for the future column, used to train the neural network to predict future price
-SEQUENCE_LEN = 300 # The look back period aka the sequence length. e.g if this is 100, the last 100 prices will be used to predict future price
-REMOVE_GAP_UPS = False
+FUTURE_PERIOD = 25 # The look forward period for the future column, used to train the neural network to predict future price
+SEQUENCE_LEN = 120 # The look back period aka the sequence length. e.g if this is 100, the last 100 prices will be used to predict future price
+REMOVE_GAP_UPS = True
 
 EPOCHS = 10 # Epochs per training fold (we are doing 10 fold cross validation)
-BATCH_SIZE = 1500
+BATCH_SIZE = 1
+# BATCH_SIZE = 1500
 
 ## MODEL INFO
 HIDDEN_LAYERS = 4
 NEURONS_PER_LAYER = 64
 
-SEQ_INFO = f"{SYMBOL_TO_PREDICT}-{INTERVAL}-SeqLen{SEQUENCE_LEN}-Forward{FUTURE_PERIOD}-{'NoGap' if REMOVE_GAP_UPS else 'GAP'}"
+SEQ_INFO = f"{SYMBOL_TO_PREDICT}-{INTERVAL}-SeqLen{SEQUENCE_LEN}-Forward{FUTURE_PERIOD}-{'NoGap' if REMOVE_GAP_UPS else 'Gap'}"
 MODEL_INFO = f"HidLayers{HIDDEN_LAYERS}-Neurons{NEURONS_PER_LAYER}"
 
 def normalize(arr: np.array, col: str):
@@ -262,11 +265,29 @@ def train_model():
 
     # opt = tf.keras.optimizers.Adam(lr=0.003, decay=1e-6)
 
+    def extreme_mae(y_true, y_pred):
+        EXTREMES = 0.1 # 0.1 = 10% -- Work out upper 10% and lower 10% 
+
+        count = len(y_pred)
+        upper = int((1 - EXTREMES) * count)
+        lower = int(EXTREMES * count)
+        upper_bound = y_pred[upper]
+        lower_bound = y_pred[lower]
+
+        upper_mask = y_pred > upper_bound ## [true, false, false, ...] etc
+        lower_mask = y_pred > lower_bound ## [true, false, false, ...] etc
+        mask = tf.logical_or(upper_mask, lower_mask) # Combine Masks
+
+        pred_slice = tf.boolean_mask(y_pred, mask)
+        true_slice = tf.boolean_mask(y_true, mask)
+
+        return K.mean(tf.abs(true_slice - pred_slice))
+
     # Compile model
     model.compile(
         loss='mse',
         optimizer="adam",
-        metrics=['mse', "mae"]
+        metrics=['mse', "mae", extreme_mae]
     )
 
     json_config = model.to_json()

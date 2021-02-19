@@ -1,6 +1,7 @@
 import tensorflow as tf
 import tensorflow.python.keras as keras
 from tensorflow.python.keras.models import Sequential
+import matplotlib.pyplot as plt
 import os
 import numpy as np
 
@@ -54,6 +55,7 @@ def test_model():
 
 
     balance = 10000.0
+    balances = [balance]
     risk = 1.0 # In percentage
     commission = 2.0 # As percentage of risk per trade
     upper = np.percentile(predictions, 90)
@@ -74,12 +76,15 @@ def test_model():
                 balance = balance * ((100 + (actual * multiplier)) / 100) - com
             else: # We are selling
                 balance = balance * ((100 - (actual * multiplier)) / 100) - com
-            print(f"Prediction: {prediction} --- Actual price dif: {actual} --- New Bal: {balance}")
-
-
+            balances.append(balance)
+            prediction_ws = " " if prediction > 0 else "" # Whitespace to align print
+            actual_ws = " " if actual > 0 else "" # Whitespace to align print
+            print(f"Prediction: {prediction_ws}{prediction:.3f} --- Actual price dif: {actual_ws}{actual:.3f} --- New Bal: {balance:.2f}")
 
     print(f"Final Balance: {balance}")
-
+    print("Showing plot for final balance:")
+    plt.plot(balances)
+    plt.title("Balance Over Simulated Trades")
 
 
 
