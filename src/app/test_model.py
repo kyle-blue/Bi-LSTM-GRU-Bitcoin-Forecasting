@@ -26,9 +26,11 @@ def test_model():
             print("Please enter a valid input")
 
     chosen_path = f"{model_dir}/{chosen_file}"
-    model_config_name = chosen_file.split("__")[1];
+    file_info = chosen_file.split("__");
+    seq_info = file_info[0]
+    model_info = file_info[1];
     
-    model_config_path = f'{os.environ["WORKSPACE"]}/model_config/{model_config_name}.json'
+    model_config_path = f'{os.environ["WORKSPACE"]}/model_config/{model_info}.json'
     model_config = "" 
     with open(model_config_path, 'r') as file:
         model_config = file.read()
@@ -37,7 +39,7 @@ def test_model():
     print(f"Successfully loaded model config from {model_config_path} and weights from {chosen_path}")
 
     print("Loading some validation data...")
-    STATE_FOLDER = f'{os.environ["WORKSPACE"]}/state/data'
+    STATE_FOLDER = f'{os.environ["WORKSPACE"]}/state/{seq_info}'
     validation_x = np.load(f"{STATE_FOLDER}/validation_x.npy")
     validation_y = np.load(f"{STATE_FOLDER}/validation_y.npy")
 
@@ -51,18 +53,27 @@ def test_model():
     # print(predictions[0][0])
 
 
-    balance = 10000
-    THRESHOLD = 4
+    balance = 10000.0
+    risk = 1.0 # In percentage
+    commission = 2.0 # As percentage of risk per trade
+    upper = np.percentile(predictions, 90)
+    lower = np.percentile(predictions, 10)
+    upper_outlier = np.percentile(predictions, 95)
+    lower_outlier = np.percentile(predictions, 5)
+    print(f"Upper: {upper} --- Lower: {lower} --- Upper_outlier: {upper_outlier} --- Lower_outlier: {lower_outlier}")
+
     print(f"\n\nStart Balance: {balance}")
     for index, prediction in enumerate(predictions):
         prediction = prediction[0]
+        multiplier = risk / abs(prediction)
         actual = validation_y[index]
-        if abs(prediction) > THRESHOLD:
+        if (prediction > upper and prediction < upper_outlier) or (prediction < lower and prediction > lower_outlier):
+            com = balance * (risk / 100) * (commission / 100)
             should_buy = prediction > 0 # Buy if positive, sell if negative
             if should_buy:
-                balance = balance * ((100 + actual) / 100)
+                balance = balance * ((100 + (actual * multiplier)) / 100) - com
             else: # We are selling
-                balance = balance * ((100 - actual) / 100)
+                balance = balance * ((100 - (actual * multiplier)) / 100) - com
             print(f"Prediction: {prediction} --- Actual price dif: {actual} --- New Bal: {balance}")
 
 

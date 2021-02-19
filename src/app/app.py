@@ -14,15 +14,21 @@ import random
 
 from app.test_model import test_model
 
-
-FUTURE_PERIOD = 25 # The look forward period for the future column, used to train the neural network to predict future price
-SEQUENCE_LEN = 120 # The look back period aka the sequence length. e.g if this is 100, the last 100 prices will be used to predict future price
+### SEQ INFO
+INTERVAL = "5min"
 SYMBOL_TO_PREDICT = "TSLA" # The current symbol to train the model to base predictions on
+FUTURE_PERIOD = 50 # The look forward period for the future column, used to train the neural network to predict future price
+SEQUENCE_LEN = 300 # The look back period aka the sequence length. e.g if this is 100, the last 100 prices will be used to predict future price
+REMOVE_GAP_UPS = False
+
 EPOCHS = 10 # Epochs per training fold (we are doing 10 fold cross validation)
 BATCH_SIZE = 1500
+
+## MODEL INFO
 HIDDEN_LAYERS = 4
 NEURONS_PER_LAYER = 64
-SEQ_INFO = f"{SYMBOL_TO_PREDICT}-1min-SeqLen{SEQUENCE_LEN}-Forward{FUTURE_PERIOD}"
+
+SEQ_INFO = f"{SYMBOL_TO_PREDICT}-{INTERVAL}-SeqLen{SEQUENCE_LEN}-Forward{FUTURE_PERIOD}"
 MODEL_INFO = f"HidLayers{HIDDEN_LAYERS}-Neurons{NEURONS_PER_LAYER}"
 
 def normalize(arr: np.array, col: str):
@@ -30,9 +36,15 @@ def normalize(arr: np.array, col: str):
 
 def get_main_dataframe():
     PICKLE_NAME = "dataframe.pkl"
-    PICKLE_FOLDER = f'{os.environ["WORKSPACE"]}/state/data'
+    PICKLE_FOLDER = f'{os.environ["WORKSPACE"]}/state/{SEQ_INFO}'
+    if not os.path.exists(PICKLE_FOLDER):
+        os.makedirs(PICKLE_FOLDER)
 
-    data_folder = f'{os.environ["WORKSPACE"]}/data/normal_hours/1min'
+    data_folder = ""
+    if INTERVAL == "1min":
+        data_folder = f'{os.environ["WORKSPACE"]}/data/normal_hours/1min'
+    if INTERVAL == "5min":
+        data_folder = f'{os.environ["WORKSPACE"]}/data/extended_hours/5min'
     symbols = set([x[:-4] for x in os.listdir(data_folder)]) # Remove .csv file extension from strings
     
     
@@ -110,11 +122,12 @@ def preprocess_df(df: pd.DataFrame):
     max_minute = df["minute"].max() # Minute for end of day
     for value in df.to_numpy():
         # Since value is only considered a single value in the sequence (even though itself is an array), to make it a sequence, we encapsulate it in an array so:
-        # sequence1 = [[values1], [values2], [values3]] 
-        if value[minute_index] >= max_minute - FUTURE_PERIOD:
-            continue
-        if value[minute_index] == min_minute:
-            cur_sequence.clear() # Only allowed full sequences
+        # sequence1 = [[values1], [values2], [values3]]
+        if REMOVE_GAP_UPS:
+            if value[minute_index] >= max_minute - FUTURE_PERIOD:
+                continue
+            if value[minute_index] == min_minute:
+                cur_sequence.clear() # Only allowed full sequences
         cur_sequence.append(value[:target_index]) # Append all but target to cur_sequence
         if len(cur_sequence) == SEQUENCE_LEN:
             sequences.append([np.array(cur_sequence), value[target_index]]) # value[-1] is the target
@@ -146,7 +159,9 @@ def preprocess_df(df: pd.DataFrame):
 
 def get_datasets():
     FILE_NAMES = ["train_x.npy", "train_y.npy", "validation_x.npy", "validation_y.npy"]
-    STATE_FOLDER = f'{os.environ["WORKSPACE"]}/state/data'
+    STATE_FOLDER = f'{os.environ["WORKSPACE"]}/state/{SEQ_INFO}'
+    if not os.path.exists(STATE_FOLDER):
+        os.makedirs(STATE_FOLDER)
     
     ### Check for existing training data
     dir_items = os.listdir(STATE_FOLDER)

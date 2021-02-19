@@ -3,8 +3,8 @@ models/*.h5
 logs/*
 !logs/.temp
 !models/final
-state/data/*.pkl
-state/data/*.npy
+state/**/*.pkl
+state/**/*.npy
 
 
 ###### PYTHON STUFF #######
