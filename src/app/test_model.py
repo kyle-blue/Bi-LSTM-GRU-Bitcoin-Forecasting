@@ -26,8 +26,9 @@ def test_model():
             print("Please enter a valid input")
 
     chosen_path = f"{model_dir}/{chosen_file}"
+    model_config_name = chosen_file.split("__")[1];
     
-    model_config_path = f'{os.environ["WORKSPACE"]}/model_config/model_config.json'
+    model_config_path = f'{os.environ["WORKSPACE"]}/model_config/{model_config_name}.json'
     model_config = "" 
     with open(model_config_path, 'r') as file:
         model_config = file.read()
