@@ -92,9 +92,10 @@ def test_model():
     print("Showing plot for final balance:")
     print(f"{len(balances)} trades executed")
     print(f"{len(predictions)} total predictions")
-    print(f"Correct direction predicted {num_correct_signs} out of {len(predictions)} times")
+    print(f"Correct direction predicted {num_correct_signs} out of {len(predictions)} times ({num_correct_signs/len(predictions)*100}%)")
     print(f"Average win % of acc: {np.average(wins)}")
     print(f"Average loss % of acc: {np.average(losses)}")
+    print(f"Wins: {len(wins)} --- Losses: {len(losses)} --- {len(wins)/(len(wins) + len(losses)) * 100}% wins")
 
     plt.plot(balances)
     plt.yscale("log")
