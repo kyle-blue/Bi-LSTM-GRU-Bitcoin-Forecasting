@@ -22,8 +22,8 @@ from app.test_model import test_model
 ### SEQ INFO
 INTERVAL = "1min"
 SYMBOL_TO_PREDICT = "TSLA" # The current symbol to train the model to base predictions on
-FUTURE_PERIOD = 20 # The look forward period for the future column, used to train the neural network to predict future price
-SEQUENCE_LEN = 90 # The look back period aka the sequence length. e.g if this is 100, the last 100 prices will be used to predict future price
+FUTURE_PERIOD = 25 # The look forward period for the future column, used to train the neural network to predict future price
+SEQUENCE_LEN = 120 # The look back period aka the sequence length. e.g if this is 100, the last 100 prices will be used to predict future price
 REMOVE_GAP_UPS = True
 
 EPOCHS = 100 # Epochs per training fold (we are doing 10 fold cross validation)
@@ -141,7 +141,7 @@ def add_derived_data(df: pd.DataFrame):
 
 
 ## @returns train_x and train_y
-def preprocess_df(df: pd.DataFrame):
+def preprocess_df(df: pd.DataFrame, isTest = False):
     ## Create sequences
     # [
     #    [[sequence1], target1]
@@ -172,7 +172,8 @@ def preprocess_df(df: pd.DataFrame):
     
     df.drop_duplicates(inplace=True)
     
-    random.shuffle(sequences) # Shuffle sequences to avoid order effects on learning
+    if not isTest:
+        random.shuffle(sequences) # Shuffle sequences to avoid order effects on learning
 
     train_x = []
     train_y = []
@@ -186,7 +187,7 @@ def preprocess_df(df: pd.DataFrame):
 
 
 def get_datasets():
-    FILE_NAMES = ["train_x.npy", "train_y.npy", "validation_x.npy", "validation_y.npy"]
+    FILE_NAMES = ["train_x.npy", "train_y.npy", "validation_x.npy", "validation_y.npy", "test_x.npy", "test_y.npy"]
     STATE_FOLDER = f'{os.environ["WORKSPACE"]}/state/{SEQ_INFO}'
     if not os.path.exists(STATE_FOLDER):
         os.makedirs(STATE_FOLDER)
@@ -207,7 +208,9 @@ def get_datasets():
                 train_y = np.load(f"{STATE_FOLDER}/{FILE_NAMES[1]}")
                 validation_x = np.load(f"{STATE_FOLDER}/{FILE_NAMES[2]}")
                 validation_y = np.load(f"{STATE_FOLDER}/{FILE_NAMES[3]}")
-                return train_x, train_y, validation_x, validation_y
+                test_x = np.load(f"{STATE_FOLDER}/{FILE_NAMES[3]}")
+                test_y = np.load(f"{STATE_FOLDER}/{FILE_NAMES[4]}")
+                return train_x, train_y, validation_x, validation_y, test_x, test_y
             if user_input == 2:
                 print("Generating new arrays of sequences for training...")
                 is_valid_input = True
@@ -215,27 +218,28 @@ def get_datasets():
     df = get_main_dataframe()
     df = add_derived_data(df)
 
-    ## Split validation and training set
-    times = sorted(df.index.values)
-    last_slice = sorted(df.index.values)[-int(0.1*len(times))]
-
-    validation_df = df[(df.index >= last_slice)]
-    df = df[(df.index < last_slice)]
+    ## Split validation and training set 60% 20% 20%
+    df, test_df = np.split(df, [int(0.8 * len(df))])
+    df.sample(frac = 1) # Shuffle validation and train together (but not test)
+    train_df, validation_df = np.split(df, [int(-len(test_df))]) # Validation is same size as test_df
 
     ## Preprocess
-    train_x, train_y = preprocess_df(df)
+    train_x, train_y = preprocess_df(train_df)
     validation_x, validation_y = preprocess_df(validation_df)
+    test_x, test_y = preprocess_df(test_df, True)
 
     ## Save data to PKL files
     np.save(f"{STATE_FOLDER}/{FILE_NAMES[0]}", train_x)
     np.save(f"{STATE_FOLDER}/{FILE_NAMES[1]}", train_y)
     np.save(f"{STATE_FOLDER}/{FILE_NAMES[2]}", validation_x)
     np.save(f"{STATE_FOLDER}/{FILE_NAMES[3]}", validation_y)
+    np.save(f"{STATE_FOLDER}/{FILE_NAMES[4]}", test_x)
+    np.save(f"{STATE_FOLDER}/{FILE_NAMES[5]}", test_y)
 
     print(f"\n\nMAIN DF FOR {SYMBOL_TO_PREDICT}")
     print(df.head(15))
 
-    return train_x, train_y, validation_x, validation_y
+    return train_x, train_y, validation_x, validation_y, test_x, test_y
 
 
 
@@ -271,10 +275,11 @@ def start():
 
 def train_model():
 
-    train_x, train_y, validation_x, validation_y = get_datasets()
+    train_x, train_y, validation_x, validation_y, test_x, test_y = get_datasets()
 
     print(f"Training total: {len(train_y)}")
     print(f"Validation total: {len(validation_y)}")
+    print(f"Test total: {len(test_y)}")
 
     ##### Compile / Train the model ###
     
@@ -306,7 +311,7 @@ def train_model():
     with open(f'{os.environ["WORKSPACE"]}/model_config/{MODEL_INFO}.json', "w+") as file:
         file.write(json_config)
 
-    tensorboard = TensorBoard(log_dir=f"logs/{SEQ_INFO}__{MODEL_INFO}")
+    tensorboard = TensorBoard(log_dir=f"logs/{SEQ_INFO}__{MODEL_INFO}__{datetime.now().timestamp()}")
 
     filepath = f"{SEQ_INFO}__{MODEL_INFO}__" + "{epoch:02d}-{val_mae:.3f}"  # unique file name that will include the epoch and the validation acc for that epoch
     checkpoint = ModelCheckpoint(f"models/{filepath}.h5", monitor="val_mae", verbose=1, save_best_only=True, mode='min', save_weights_only=True) # saves only the best ones

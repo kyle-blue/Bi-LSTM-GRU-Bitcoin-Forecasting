@@ -39,41 +39,50 @@ def test_model():
     model.load_weights(chosen_path)
     print(f"Successfully loaded model config from {model_config_path} and weights from {chosen_path}")
 
-    print("Loading some validation data...")
+    print("Loading some unseen test data...")
     STATE_FOLDER = f'{os.environ["WORKSPACE"]}/state/{seq_info}'
-    validation_x = np.load(f"{STATE_FOLDER}/validation_x.npy")
-    validation_y = np.load(f"{STATE_FOLDER}/validation_y.npy")
+    test_x = np.load(f"{STATE_FOLDER}/test_x.npy")
+    test_y = np.load(f"{STATE_FOLDER}/test_y.npy")
 
     # ITERATIONS = 100
     # print(f"Testing {ITERATIONS} random sequences for {SYMBOL}")
-    predictions = model.predict(validation_x)
+    predictions = model.predict(test_x)
     for index, prediction in enumerate(predictions):
         prediction = prediction[0]
-        actual = validation_y[index]
+        actual = test_y[index]
         print(f"Prediction: {prediction} --- actual: {actual}")
     # print(predictions[0][0])
 
 
     balance = 10000.0
     balances = [balance]
+    wins, losses = [], []
     risk = 1.0 # In percentage
-    commission = 2.0 # As percentage of risk per trade
+    commission = 4.0 # As percentage of risk per trade
     upper = np.percentile(predictions, 90)
     lower = np.percentile(predictions, 10)
     print(f"Upper: {upper} --- Lower: {lower}")
 
     print(f"\n\nStart Balance: {balance}")
+    num_correct_signs = 0
     for index, prediction in enumerate(predictions):
         prediction = prediction[0]
         multiplier = risk / abs(prediction)
-        actual = validation_y[index]
+        actual = test_y[index]
+        if (prediction < 0 and actual < 0) or (prediction > 0 and actual > 0):
+            num_correct_signs += 1
         if prediction > upper or prediction < lower:
             com = balance * (risk / 100) * (commission / 100)
             should_buy = prediction > 0 # Buy if positive, sell if negative
             if should_buy:
-                balance = balance * ((100 + (actual * multiplier)) / 100) - com
+                new_balance = balance * ((100 + (actual * multiplier)) / 100) - com
             else: # We are selling
-                balance = balance * ((100 - (actual * multiplier)) / 100) - com
+                new_balance = balance * ((100 - (actual * multiplier)) / 100) - com
+            if new_balance > balance:
+                wins.append(abs(actual * multiplier))
+            else:
+                losses.append(abs(actual * multiplier))
+            balance = new_balance
             balances.append(balance)
             prediction_ws = " " if prediction > 0 else "" # Whitespace to align print
             actual_ws = " " if actual > 0 else "" # Whitespace to align print
@@ -83,7 +92,12 @@ def test_model():
     print("Showing plot for final balance:")
     print(f"{len(balances)} trades executed")
     print(f"{len(predictions)} total predictions")
+    print(f"Correct direction predicted {num_correct_signs} out of {len(predictions)} times")
+    print(f"Average win % of acc: {np.average(wins)}")
+    print(f"Average loss % of acc: {np.average(losses)}")
+
     plt.plot(balances)
+    plt.yscale("log")
     plt.title("Balance Over Simulated Trades")
 
 
