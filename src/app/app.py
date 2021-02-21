@@ -12,20 +12,23 @@ import matplotlib.pyplot as plt
 from collections import deque
 import os
 import random
+from app.CustomMetrics import CustomMetrics
+from app.SavePredictions import SavePrediction
 from app.extreme_mae import extreme_mae
+import ta
 
 from app.test_model import test_model
 
 ### SEQ INFO
-INTERVAL = "5min"
+INTERVAL = "1min"
 SYMBOL_TO_PREDICT = "TSLA" # The current symbol to train the model to base predictions on
-FUTURE_PERIOD = 25 # The look forward period for the future column, used to train the neural network to predict future price
-SEQUENCE_LEN = 120 # The look back period aka the sequence length. e.g if this is 100, the last 100 prices will be used to predict future price
+FUTURE_PERIOD = 20 # The look forward period for the future column, used to train the neural network to predict future price
+SEQUENCE_LEN = 90 # The look back period aka the sequence length. e.g if this is 100, the last 100 prices will be used to predict future price
 REMOVE_GAP_UPS = True
 
-EPOCHS = 10 # Epochs per training fold (we are doing 10 fold cross validation)
-BATCH_SIZE = 1
-# BATCH_SIZE = 1500
+EPOCHS = 100 # Epochs per training fold (we are doing 10 fold cross validation)
+# BATCH_SIZE = 1
+BATCH_SIZE = 3000
 
 ## MODEL INFO
 HIDDEN_LAYERS = 4
@@ -54,7 +57,8 @@ def get_main_dataframe():
     if PICKLE_NAME in os.listdir(PICKLE_FOLDER):
         main_df = pd.read_pickle(f"{PICKLE_FOLDER}/{PICKLE_NAME}")
         print("Found existing dataframe, checking if it has correct number of columns (2x the number of symbols [1 for %_chg and 1 for volume])")
-        if len(main_df.columns) == 2 * len(symbols):
+        print(main_df.tail(15))
+        if len(main_df.columns) == 5 * len(symbols) + 9: # There are 9 extra indicators
             print(f"Dataframe found to be the most up to date, using dataframe in: {PICKLE_FOLDER}/{PICKLE_NAME}")
             return main_df
 
@@ -63,19 +67,35 @@ def get_main_dataframe():
         filename = f"{data_folder}/{symbol}.csv"
         df = pd.read_csv(filename, parse_dates=["Time"])
         df.set_index("Time", inplace=True)
-        df = df[["%Chg", "Volume"]]
+        df = df[["Open", "High", "Low", "Last", "Volume"]]
 
-        ## Convert %Chg column from string to float64
-        change_floats = [float(x[:-1]) for x in df["%Chg"]]
-        df["%Chg"] = change_floats
+        df.rename(columns={"Open": f"{symbol}_open", "High": f"{symbol}_high", "Low": f"{symbol}_low", "Last": f"{symbol}_close", "Volume": f"{symbol}_volume"}, inplace=True)
 
-        df.rename(columns={"%Chg": f"{symbol}_%_chg", "Volume": f"{symbol}_volume"}, inplace=True)
-        
+        if symbol == SYMBOL_TO_PREDICT:
+            ind = ta.trend.MACD(df[f"{symbol}_close"], fillna=True)
+            df[f"{symbol}_macd_fast"] = ind.macd()
+            df[f"{symbol}_macd_signal"] = ind.macd_signal()
+            df[f"{symbol}_macd_histogram"] = ind.macd_diff()
+
+            ind = ta.momentum.RSIIndicator(df[f"{symbol}_close"], fillna=True)
+            df[f"{symbol}_rsi"] = ind.rsi()
+
+            ind = ta.trend.ADXIndicator(df[f"{symbol}_high"], df[f"{symbol}_low"], df[f"{symbol}_close"], fillna=True)
+            df[f"{symbol}_adx"] = ind.adx()
+            df[f"{symbol}_adx_neg"] = ind.adx_neg()
+            df[f"{symbol}_adx_pos"] = ind.adx_pos()
+
+            ind = ta.volume.AccDistIndexIndicator(df[f"{symbol}_high"], df[f"{symbol}_low"], df[f"{symbol}_close"], df[f"{symbol}_volume"], fillna=True)
+            df[f"{symbol}_acc_dist"] = ind.acc_dist_index()
+
+            ind = ta.volatility.AverageTrueRange(df[f"{symbol}_high"], df[f"{symbol}_low"], df[f"{symbol}_close"], fillna=True)
+            df[f"{symbol}_atr"] = ind.average_true_range()
+
         if len(main_df) == 0: main_df = df
         else: main_df = main_df.join(df, how="outer")
 
+        print(main_df.tail(20))
         main_df.dropna(inplace=True)
-    
     pd.to_pickle(main_df, f"{PICKLE_FOLDER}/{PICKLE_NAME}") # Save df to avoid future processing
     return main_df
 
@@ -91,11 +111,22 @@ def add_derived_data(df: pd.DataFrame):
     df["day"] = days
     # df["hour"] = hours
     df["minute"] = minutes
+    df["minute_not_norm"] = minutes
     
+
+    ##### PREPROCESSING NORMALISATION #####
+    for col in df.columns:
+        if col != "minute_not_norm":
+            ## Change volumes into percent change also
+            df[col] = df[col].pct_change()
+            df.replace([np.inf, -np.inf], np.nan, inplace=True)
+            df.dropna(inplace=True)
+            ## Normalise all data (except target price)
+            df[col] = normalize(df[col].values, col)
 
     ## Add future price column to main_df (which is now the target)
     future = []
-    symbol_data = df[f"{SYMBOL_TO_PREDICT}_%_chg"]
+    symbol_data = df[f"{SYMBOL_TO_PREDICT}_close"]
     symbol_data_len = len(symbol_data)
     for i in range(symbol_data_len):
         if i >= symbol_data_len - FUTURE_PERIOD:
@@ -117,35 +148,29 @@ def preprocess_df(df: pd.DataFrame):
     #    [[sequence2], target2]
     # ]
     
+    
     sequences: list = [] 
     cur_sequence: Deque = deque(maxlen=SEQUENCE_LEN)
-    minute_index = df.columns.get_loc("minute")
+    # minute_index = df.columns.get_loc("minute")
+    minutes = df["minute_not_norm"]
+    df.drop(columns=["minute_not_norm"])
     target_index = df.columns.get_loc("target")
-    min_minute = df["minute"].min() # Minute for start of day
-    max_minute = df["minute"].max() # Minute for end of day
-    for value in df.to_numpy():
+    min_minute = minutes.min() # Minute for start of day
+    max_minute = minutes.max() # Minute for end of day
+    for index, value in enumerate(df.to_numpy()):
         # Since value is only considered a single value in the sequence (even though itself is an array), to make it a sequence, we encapsulate it in an array so:
         # sequence1 = [[values1], [values2], [values3]]
         if REMOVE_GAP_UPS:
-            if value[minute_index] >= max_minute - FUTURE_PERIOD:
+            cur = minutes[index]
+            if cur >= max_minute - FUTURE_PERIOD:
                 continue
-            if value[minute_index] == min_minute:
+            if cur == min_minute:
                 cur_sequence.clear() # Only allowed full sequences
         cur_sequence.append(value[:target_index]) # Append all but target to cur_sequence
         if len(cur_sequence) == SEQUENCE_LEN:
             sequences.append([np.array(cur_sequence), value[target_index]]) # value[-1] is the target
     
     df.drop_duplicates(inplace=True)
-    ##### PREPROCESSING #####
-    for col in df.columns:
-        if "volume" in col: 
-            ## Change volumes into percent change also
-            df[col] = df[col].pct_change()
-            df.replace([np.inf, -np.inf], np.nan, inplace=True)
-            df.dropna(inplace=True)
-        if col != "target":
-            ## Normalise all data (except target price)
-            df[col] = normalize(df[col].values, col)
     
     random.shuffle(sequences) # Shuffle sequences to avoid order effects on learning
 
@@ -223,6 +248,9 @@ def start():
     config.gpu_options.allow_growth = True
     session = tf.compat.v1.Session(config=config)
 
+    tf.compat.v1.disable_eager_execution()
+
+
     print("\n\n\n")
     print("Please choose an option:")
     print("1. Train a new model")
@@ -265,29 +293,13 @@ def train_model():
 
     # opt = tf.keras.optimizers.Adam(lr=0.003, decay=1e-6)
 
-    def extreme_mae(y_true, y_pred):
-        EXTREMES = 0.1 # 0.1 = 10% -- Work out upper 10% and lower 10% 
 
-        count = len(y_pred)
-        upper = int((1 - EXTREMES) * count)
-        lower = int(EXTREMES * count)
-        upper_bound = y_pred[upper]
-        lower_bound = y_pred[lower]
-
-        upper_mask = y_pred > upper_bound ## [true, false, false, ...] etc
-        lower_mask = y_pred > lower_bound ## [true, false, false, ...] etc
-        mask = tf.logical_or(upper_mask, lower_mask) # Combine Masks
-
-        pred_slice = tf.boolean_mask(y_pred, mask)
-        true_slice = tf.boolean_mask(y_true, mask)
-
-        return K.mean(tf.abs(true_slice - pred_slice))
 
     # Compile model
     model.compile(
         loss='mse',
         optimizer="adam",
-        metrics=['mse', "mae", extreme_mae]
+        metrics=['mse', "mae"]
     )
 
     json_config = model.to_json()
@@ -299,13 +311,14 @@ def train_model():
     filepath = f"{SEQ_INFO}__{MODEL_INFO}__" + "{epoch:02d}-{val_mae:.3f}"  # unique file name that will include the epoch and the validation acc for that epoch
     checkpoint = ModelCheckpoint(f"models/{filepath}.h5", monitor="val_mae", verbose=1, save_best_only=True, mode='min', save_weights_only=True) # saves only the best ones
 
+    
     # Train model
     history = model.fit(
         train_x, train_y,
         batch_size=BATCH_SIZE,
         epochs=EPOCHS,
         validation_data=(validation_x, validation_y),
-        callbacks=[tensorboard, checkpoint],
+        callbacks=[tensorboard, checkpoint, SavePrediction(validation_y)],
     )
 
     # Score model

@@ -60,16 +60,14 @@ def test_model():
     commission = 2.0 # As percentage of risk per trade
     upper = np.percentile(predictions, 90)
     lower = np.percentile(predictions, 10)
-    upper_outlier = np.percentile(predictions, 95)
-    lower_outlier = np.percentile(predictions, 5)
-    print(f"Upper: {upper} --- Lower: {lower} --- Upper_outlier: {upper_outlier} --- Lower_outlier: {lower_outlier}")
+    print(f"Upper: {upper} --- Lower: {lower}")
 
     print(f"\n\nStart Balance: {balance}")
     for index, prediction in enumerate(predictions):
         prediction = prediction[0]
         multiplier = risk / abs(prediction)
         actual = validation_y[index]
-        if (prediction > upper and prediction < upper_outlier) or (prediction < lower and prediction > lower_outlier):
+        if prediction > upper or prediction < lower:
             com = balance * (risk / 100) * (commission / 100)
             should_buy = prediction > 0 # Buy if positive, sell if negative
             if should_buy:
@@ -83,6 +81,8 @@ def test_model():
 
     print(f"Final Balance: {balance}")
     print("Showing plot for final balance:")
+    print(f"{len(balances)} trades executed")
+    print(f"{len(predictions)} total predictions")
     plt.plot(balances)
     plt.title("Balance Over Simulated Trades")
 
