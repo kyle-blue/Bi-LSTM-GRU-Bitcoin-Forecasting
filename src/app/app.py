@@ -3,7 +3,7 @@ from typing import Deque
 from numpy.core.numeric import Inf, NaN
 import tensorflow as tf
 from tensorflow.python.keras.models import Sequential
-from tensorflow.python.keras.layers import Dense, Dropout, LSTM, BatchNormalization, CuDNNLSTM
+from tensorflow.python.keras.layers import Dense, Dropout, LSTM, BatchNormalization, CuDNNLSTM, CuDNNGRU
 from tensorflow.python.keras.callbacks import TensorBoard, ModelCheckpoint
 import tensorflow.python.keras.backend as K
 import numpy as np
@@ -13,6 +13,7 @@ from collections import deque
 import os
 import random
 from app.CustomMetrics import CustomMetrics
+from app.RSquaredMetric import RSquaredMetric
 from app.SavePredictions import SavePrediction
 from app.extreme_mae import extreme_mae
 import ta
@@ -27,17 +28,19 @@ SEQUENCE_LEN = 120 # The look back period aka the sequence length. e.g if this i
 REMOVE_GAP_UPS = True
 
 EPOCHS = 100 # Epochs per training fold (we are doing 10 fold cross validation)
-# BATCH_SIZE = 1
-BATCH_SIZE = 3000
+BATCH_SIZE = 2048
 
 ## MODEL INFO
 HIDDEN_LAYERS = 4
 NEURONS_PER_LAYER = 64
+RNN = CuDNNGRU # CuDNNGRU or CuDNNLSTM
+SHOULD_USE_DROPOUT = False
 
 SEQ_INFO = f"{SYMBOL_TO_PREDICT}-{INTERVAL}-SeqLen{SEQUENCE_LEN}-Forward{FUTURE_PERIOD}-{'NoGap' if REMOVE_GAP_UPS else 'Gap'}"
-MODEL_INFO = f"HidLayers{HIDDEN_LAYERS}-Neurons{NEURONS_PER_LAYER}"
+LAYER_NAME = "LSTM" if RNN is CuDNNLSTM else "GRU"
+MODEL_INFO = f"{LAYER_NAME}-HidLayers{HIDDEN_LAYERS}-Neurons{NEURONS_PER_LAYER}"
 
-def normalize(arr: np.array, col: str):
+def normalize(arr: np.array):
     return (arr - np.mean(arr)) / np.std(arr)
 
 def get_main_dataframe():
@@ -48,9 +51,9 @@ def get_main_dataframe():
 
     data_folder = ""
     if INTERVAL == "1min":
-        data_folder = f'{os.environ["WORKSPACE"]}/data/normal_hours/1min'
+        data_folder = f'{os.environ["WORKSPACE"]}/data/trading/normal_hours/1min'
     if INTERVAL == "5min":
-        data_folder = f'{os.environ["WORKSPACE"]}/data/extended_hours/5min'
+        data_folder = f'{os.environ["WORKSPACE"]}/data/trading/extended_hours/5min'
     symbols = set([x[:-4] for x in os.listdir(data_folder)]) # Remove .csv file extension from strings
     
     
@@ -68,6 +71,7 @@ def get_main_dataframe():
         df = pd.read_csv(filename, parse_dates=["Time"])
         df.set_index("Time", inplace=True)
         df = df[["Open", "High", "Low", "Last", "Volume"]]
+        df = df.iloc[::-1] # Reverse dataset so its earliest to latest
 
         df.rename(columns={"Open": f"{symbol}_open", "High": f"{symbol}_high", "Low": f"{symbol}_low", "Last": f"{symbol}_close", "Volume": f"{symbol}_volume"}, inplace=True)
 
@@ -168,7 +172,9 @@ def preprocess_df(df: pd.DataFrame, isTest = False):
                 cur_sequence.clear() # Only allowed full sequences
         cur_sequence.append(value[:target_index]) # Append all but target to cur_sequence
         if len(cur_sequence) == SEQUENCE_LEN:
-            sequences.append([np.array(cur_sequence), value[target_index]]) # value[-1] is the target
+            seq = list(cur_sequence)
+            seq.reverse()
+            sequences.append([np.array(seq), value[target_index]]) # value[-1] is the target
     
     df.drop_duplicates(inplace=True)
     
@@ -283,14 +289,18 @@ def train_model():
 
     ##### Compile / Train the model ###
     
-    model = Sequential()
-    model.add(CuDNNLSTM(NEURONS_PER_LAYER, input_shape=(train_x.shape[1:]), return_sequences=True))
+    model = Sequential()    
+    model.add(RNN(NEURONS_PER_LAYER, input_shape=(train_x.shape[1:]), return_sequences=True))
+    if SHOULD_USE_DROPOUT:
+        model.add(Dropout(0.1))
     model.add(BatchNormalization())
 
     
     for i in range(HIDDEN_LAYERS):
         return_sequences = i != HIDDEN_LAYERS - 1 # False on last iter
-        model.add(CuDNNLSTM(NEURONS_PER_LAYER, return_sequences=return_sequences))
+        model.add(RNN(NEURONS_PER_LAYER, return_sequences=return_sequences))
+        if SHOULD_USE_DROPOUT:
+            model.add(Dropout(0.1))
         model.add(BatchNormalization())
 
     model.add(Dense(1))
@@ -302,9 +312,9 @@ def train_model():
 
     # Compile model
     model.compile(
-        loss='mse',
+        loss='mae',
         optimizer="adam",
-        metrics=['mse', "mae"]
+        metrics=['mse', "mae", RSquaredMetric]
     )
 
     json_config = model.to_json()
@@ -314,7 +324,7 @@ def train_model():
     tensorboard = TensorBoard(log_dir=f"logs/{SEQ_INFO}__{MODEL_INFO}__{datetime.now().timestamp()}")
 
     filepath = f"{SEQ_INFO}__{MODEL_INFO}__" + "{epoch:02d}-{val_mae:.3f}"  # unique file name that will include the epoch and the validation acc for that epoch
-    checkpoint = ModelCheckpoint(f"models/{filepath}.h5", monitor="val_mae", verbose=1, save_best_only=True, mode='min', save_weights_only=True) # saves only the best ones
+    checkpoint = ModelCheckpoint(f"models/{filepath}.h5", monitor="val_mae", verbose=1, save_best_only=False, mode='min', save_weights_only=True) # saves only the best ones
 
     
     # Train model
@@ -323,7 +333,8 @@ def train_model():
         batch_size=BATCH_SIZE,
         epochs=EPOCHS,
         validation_data=(validation_x, validation_y),
-        callbacks=[tensorboard, checkpoint, SavePrediction(validation_y)],
+        # callbacks=[tensorboard, checkpoint, SavePrediction(validation_y)],
+        callbacks=[tensorboard, checkpoint],
     )
 
     # Score model

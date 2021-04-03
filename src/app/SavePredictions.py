@@ -2,6 +2,11 @@ import tensorflow as tf
 from tensorflow.python.keras.callbacks import Callback
 import tensorflow.python.keras.backend as K
 import numpy as np
+import time
+
+def current_milli_time():
+    return round(time.time() * 1000)
+
 
 class SavePrediction(Callback):
     def __init__(self, true):
@@ -9,6 +14,7 @@ class SavePrediction(Callback):
         self._get_pred = None
         self.preds = None
         self.true = true
+        self.last_time = current_milli_time()
 
     def _pred_callback(self, preds):
         if self.preds is None:
@@ -42,6 +48,9 @@ class SavePrediction(Callback):
 
 
     def on_epoch_end(self, epoch, logs):
+        time = current_milli_time()
+        time_elapsed = time - self.last_time
+        self.last_time = time
         upper = np.percentile(self.preds, 90)
         lower = np.percentile(self.preds, 10)
         # upper_mask = self.preds > upper
@@ -72,6 +81,8 @@ class SavePrediction(Callback):
         print(f"HIGHEST PRED: {np.max(self.preds): .4f}")
         print(f"LOWEST PRED: {np.min(self.preds): .4f}")
         print(f"STDEV: {np.std(self.preds): .4f}")
+        time_elapsed_seconds = time_elapsed / 1000.0
+        print(f"TIME SINCE LAST EPOCH: {time_elapsed_seconds: .3f} seconds")
 
         self.preds = None
         return super().on_epoch_end(epoch, logs=logs)
