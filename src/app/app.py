@@ -20,6 +20,9 @@ from app.test_model import test_model
 SEQ_INFO = f"{SYMBOL_TO_PREDICT}-SeqLen{SEQUENCE_LEN}-Forward{FUTURE_PERIOD}"
 MODEL_INFO = f"{MODEL.__name__}-HidLayers{HIDDEN_LAYERS}-Neurons{NEURONS_PER_LAYER}"
 
+def normalize(arr: np.array):
+    return (arr - np.mean(arr)) / np.std(arr)
+
 def get_main_dataframe():
     PICKLE_NAME = "dataframe.pkl"
     PICKLE_FOLDER = f'{os.environ["WORKSPACE"]}/state/{SEQ_INFO}'
@@ -87,18 +90,7 @@ def add_derived_data(df: pd.DataFrame):
     df["day"] = days
     # df["hour"] = hours
     df["minute"] = minutes
-    
-    ##### PREPROCESSING NORMALISATION #####
-    for col in df.columns:
-        ## Normalise all data (except target price)
-        df[col] = df[col].pct_change()
-        df.replace([np.inf], 1.0, inplace=True)
-        df.dropna(inplace=True)
-        scaler = MinMaxScaler()
-        data = df[col].values.reshape(-1, 1)
-        scaler.fit(data)
-        df[col] = scaler.transform(data)
-    
+
 
     ## Add future price column to main_df (which is now the target)
     future = []
@@ -113,6 +105,25 @@ def add_derived_data(df: pd.DataFrame):
     df["target"] = future
     df.dropna(inplace=True)
 
+
+    
+    ##### PREPROCESSING NORMALISATION #####
+    for col in df.columns:
+        if "volume" in col:
+            df[col] = df[col] + 1 # Avoid zero errors
+        if col != "day" and col != "minute":
+            df[col] = df[col].pct_change()
+            df[col].replace([np.inf], 1.0, inplace=True)
+            df[col].replace([-np.inf], 0.0, inplace=True)
+            df.replace([np.inf], 1.0, inplace=True)
+            df.dropna(inplace=True)
+        if col != "target":
+            ## Normalise all data (except target price)
+            df[col] = normalize(df[col].values)
+
+    df.dropna(inplace=True)
+
+    
     return df
 
 
@@ -134,7 +145,6 @@ def preprocess_df(df: pd.DataFrame, isTest = False):
         cur_sequence.append(value[:target_index]) # Append all but target to cur_sequence
         if len(cur_sequence) == SEQUENCE_LEN:
             seq = list(cur_sequence)
-            seq.reverse()
             sequences.append([np.array(seq), value[target_index]]) # value[-1] is the target
     
     df.drop_duplicates(inplace=True)
