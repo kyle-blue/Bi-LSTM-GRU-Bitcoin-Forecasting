@@ -5,10 +5,24 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: File",
+            "name": "Main App",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/src/__main__.py",
+            "program": "${workspaceFolder}/src/app_main.py",
+            "console": "integratedTerminal",
+            "args": [
+                "-W",
+                "ignore"
+            ],
+            "env": {
+                "WORKSPACE": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "Preprocess Crypto Datasets",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/dataset_main.py",
             "console": "integratedTerminal",
             "args": [
                 "-W",

@@ -1,33 +1,24 @@
 from datetime import datetime
 from typing import Deque
-from numpy.core.numeric import Inf, NaN
+from numpy.core.numeric import NaN
 import tensorflow as tf
 from tensorflow.python.keras.models import Sequential
-from tensorflow.python.keras.layers import Dense, Dropout, LSTM, BatchNormalization, CuDNNLSTM, CuDNNGRU
+from tensorflow.python.keras.layers import Dense, Dropout, BatchNormalization
 from tensorflow.python.keras.callbacks import TensorBoard, ModelCheckpoint
-import tensorflow.python.keras.backend as K
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 from collections import deque
 import os
 import random
-from app.CustomMetrics import CustomMetrics
-from app.RSquaredMetric import RSquaredMetric
-from app.SavePredictions import SavePrediction
-from app.extreme_mae import extreme_mae
 import ta
+from .parameters import *
+from .RSquaredMetric import RSquaredMetric
+from sklearn.preprocessing import MinMaxScaler
 
 from app.test_model import test_model
 
-
-
-SEQ_INFO = f"{SYMBOL_TO_PREDICT}-{INTERVAL}-SeqLen{SEQUENCE_LEN}-Forward{FUTURE_PERIOD}-{'NoGap' if REMOVE_GAP_UPS else 'Gap'}"
-LAYER_NAME = "LSTM" if RNN is CuDNNLSTM else "GRU"
-MODEL_INFO = f"{LAYER_NAME}-HidLayers{HIDDEN_LAYERS}-Neurons{NEURONS_PER_LAYER}"
-
-def normalize(arr: np.array):
-    return (arr - np.mean(arr)) / np.std(arr)
+SEQ_INFO = f"{SYMBOL_TO_PREDICT}-SeqLen{SEQUENCE_LEN}-Forward{FUTURE_PERIOD}"
+MODEL_INFO = f"{MODEL.__name__}-HidLayers{HIDDEN_LAYERS}-Neurons{NEURONS_PER_LAYER}"
 
 def get_main_dataframe():
     PICKLE_NAME = "dataframe.pkl"
@@ -35,56 +26,51 @@ def get_main_dataframe():
     if not os.path.exists(PICKLE_FOLDER):
         os.makedirs(PICKLE_FOLDER)
 
-    data_folder = ""
-    if INTERVAL == "1min":
-        data_folder = f'{os.environ["WORKSPACE"]}/data/trading/normal_hours/1min'
-    if INTERVAL == "5min":
-        data_folder = f'{os.environ["WORKSPACE"]}/data/trading/extended_hours/5min'
-    symbols = set([x[:-4] for x in os.listdir(data_folder)]) # Remove .csv file extension from strings
-    
+    data_folder = f'{os.environ["WORKSPACE"]}/data/crypto'
+    symbols = set([x.split(".")[0] for x in os.listdir(data_folder)]) # Remove .csv file extension from strings
     
     if PICKLE_NAME in os.listdir(PICKLE_FOLDER):
         main_df = pd.read_pickle(f"{PICKLE_FOLDER}/{PICKLE_NAME}")
         print("Found existing dataframe, checking if it has correct number of columns (2x the number of symbols [1 for %_chg and 1 for volume])")
         print(main_df.tail(15))
-        if len(main_df.columns) == 5 * len(symbols) + 9: # There are 9 extra indicators
+        if len(main_df.columns) == 5 * len(symbols) + 3: # 3 for Day minute and target
             print(f"Dataframe found to be the most up to date, using dataframe in: {PICKLE_FOLDER}/{PICKLE_NAME}")
             return main_df
 
     main_df = pd.DataFrame()
     for symbol in symbols:
-        filename = f"{data_folder}/{symbol}.csv"
-        df = pd.read_csv(filename, parse_dates=["Time"])
-        df.set_index("Time", inplace=True)
-        df = df[["Open", "High", "Low", "Last", "Volume"]]
-        df = df.iloc[::-1] # Reverse dataset so its earliest to latest
+        filename = f"{data_folder}/{symbol}.parquet"
+        df = pd.read_parquet(filename) # Index is automatically set to open_time
+        df = df[["open", "high", "low", "close", "volume"]]
 
-        df.rename(columns={"Open": f"{symbol}_open", "High": f"{symbol}_high", "Low": f"{symbol}_low", "Last": f"{symbol}_close", "Volume": f"{symbol}_volume"}, inplace=True)
+        df.rename(columns={"open": f"{symbol}_open", "high": f"{symbol}_high", "low": f"{symbol}_low", "close": f"{symbol}_close", "volume": f"{symbol}_volume"}, inplace=True)
+        df = df[-MAX_DATASET_SIZE:] # Reduce dataset size to max size
 
-        if symbol == SYMBOL_TO_PREDICT:
-            ind = ta.trend.MACD(df[f"{symbol}_close"], fillna=True)
-            df[f"{symbol}_macd_fast"] = ind.macd()
-            df[f"{symbol}_macd_signal"] = ind.macd_signal()
-            df[f"{symbol}_macd_histogram"] = ind.macd_diff()
+        # TODO: Uncomment this part??
+        # if symbol == SYMBOL_TO_PREDICT:
+        #     ind = ta.trend.MACD(df[f"{symbol}_close"], fillna=True)
+        #     df[f"{symbol}_macd_fast"] = ind.macd()
+        #     df[f"{symbol}_macd_signal"] = ind.macd_signal()
+        #     df[f"{symbol}_macd_histogram"] = ind.macd_diff()
 
-            ind = ta.momentum.RSIIndicator(df[f"{symbol}_close"], fillna=True)
-            df[f"{symbol}_rsi"] = ind.rsi()
+        #     ind = ta.momentum.RSIIndicator(df[f"{symbol}_close"], fillna=True)
+        #     df[f"{symbol}_rsi"] = ind.rsi()
 
-            ind = ta.trend.ADXIndicator(df[f"{symbol}_high"], df[f"{symbol}_low"], df[f"{symbol}_close"], fillna=True)
-            df[f"{symbol}_adx"] = ind.adx()
-            df[f"{symbol}_adx_neg"] = ind.adx_neg()
-            df[f"{symbol}_adx_pos"] = ind.adx_pos()
+        #     ind = ta.trend.ADXIndicator(df[f"{symbol}_high"], df[f"{symbol}_low"], df[f"{symbol}_close"], fillna=True)
+        #     df[f"{symbol}_adx"] = ind.adx()
+        #     df[f"{symbol}_adx_neg"] = ind.adx_neg()
+        #     df[f"{symbol}_adx_pos"] = ind.adx_pos()
 
-            ind = ta.volume.AccDistIndexIndicator(df[f"{symbol}_high"], df[f"{symbol}_low"], df[f"{symbol}_close"], df[f"{symbol}_volume"], fillna=True)
-            df[f"{symbol}_acc_dist"] = ind.acc_dist_index()
+        #     ind = ta.volume.AccDistIndexIndicator(df[f"{symbol}_high"], df[f"{symbol}_low"], df[f"{symbol}_close"], df[f"{symbol}_volume"], fillna=True)
+        #     df[f"{symbol}_acc_dist"] = ind.acc_dist_index()
 
-            ind = ta.volatility.AverageTrueRange(df[f"{symbol}_high"], df[f"{symbol}_low"], df[f"{symbol}_close"], fillna=True)
-            df[f"{symbol}_atr"] = ind.average_true_range()
+        #     ind = ta.volatility.AverageTrueRange(df[f"{symbol}_high"], df[f"{symbol}_low"], df[f"{symbol}_close"], fillna=True)
+        #     df[f"{symbol}_atr"] = ind.average_true_range()
 
         if len(main_df) == 0: main_df = df
         else: main_df = main_df.join(df, how="outer")
 
-        print(main_df.tail(20))
+        print(main_df)
         main_df.dropna(inplace=True)
     pd.to_pickle(main_df, f"{PICKLE_FOLDER}/{PICKLE_NAME}") # Save df to avoid future processing
     return main_df
@@ -101,18 +87,15 @@ def add_derived_data(df: pd.DataFrame):
     df["day"] = days
     # df["hour"] = hours
     df["minute"] = minutes
-    df["minute_not_norm"] = minutes
     
-
     ##### PREPROCESSING NORMALISATION #####
     for col in df.columns:
-        if col != "minute_not_norm":
-            ## Change volumes into percent change also
-            df[col] = df[col].pct_change()
-            df.replace([np.inf, -np.inf], np.nan, inplace=True)
-            df.dropna(inplace=True)
-            ## Normalise all data (except target price)
-            df[col] = normalize(df[col].values, col)
+        ## Normalise all data (except target price)
+        scaler = MinMaxScaler()
+        data = df[col].values.reshape(-1, 1)
+        scaler.fit(data)
+        df[col] = scaler.transform(data)
+    
 
     ## Add future price column to main_df (which is now the target)
     future = []
@@ -141,21 +124,10 @@ def preprocess_df(df: pd.DataFrame, isTest = False):
     
     sequences: list = [] 
     cur_sequence: Deque = deque(maxlen=SEQUENCE_LEN)
-    # minute_index = df.columns.get_loc("minute")
-    minutes = df["minute_not_norm"]
-    df.drop(columns=["minute_not_norm"])
     target_index = df.columns.get_loc("target")
-    min_minute = minutes.min() # Minute for start of day
-    max_minute = minutes.max() # Minute for end of day
     for index, value in enumerate(df.to_numpy()):
         # Since value is only considered a single value in the sequence (even though itself is an array), to make it a sequence, we encapsulate it in an array so:
         # sequence1 = [[values1], [values2], [values3]]
-        if REMOVE_GAP_UPS:
-            cur = minutes[index]
-            if cur >= max_minute - FUTURE_PERIOD:
-                continue
-            if cur == min_minute:
-                cur_sequence.clear() # Only allowed full sequences
         cur_sequence.append(value[:target_index]) # Append all but target to cur_sequence
         if len(cur_sequence) == SEQUENCE_LEN:
             seq = list(cur_sequence)
@@ -276,25 +248,18 @@ def train_model():
     ##### Compile / Train the model ###
     
     model = Sequential()    
-    model.add(RNN(NEURONS_PER_LAYER, input_shape=(train_x.shape[1:]), return_sequences=True))
-    if SHOULD_USE_DROPOUT:
-        model.add(Dropout(0.1))
+    model.add(MODEL(NEURONS_PER_LAYER, input_shape=(train_x.shape[1:]), return_sequences=True))
+    model.add(Dropout(DROPOUT))
     model.add(BatchNormalization())
 
     
     for i in range(HIDDEN_LAYERS):
         return_sequences = i != HIDDEN_LAYERS - 1 # False on last iter
-        model.add(RNN(NEURONS_PER_LAYER, return_sequences=return_sequences))
-        if SHOULD_USE_DROPOUT:
-            model.add(Dropout(0.1))
+        model.add(MODEL(NEURONS_PER_LAYER, return_sequences=return_sequences))
+        model.add(Dropout(DROPOUT))
         model.add(BatchNormalization())
 
     model.add(Dense(1))
-
-
-    # opt = tf.keras.optimizers.Adam(lr=0.003, decay=1e-6)
-
-
 
     # Compile model
     model.compile(
