@@ -221,10 +221,9 @@ def get_datasets():
 
 def start():
     ## Only allocate required GPU space
-    config = tf.compat.v1.ConfigProto()
-    config.gpu_options.allow_growth = True
-    session = tf.compat.v1.Session(config=config)
-
+    gpu_options = tf.GPUOptions(allow_growth=True)
+    config = tf.ConfigProto(gpu_options=gpu_options)
+    session = tf.python.compat.v1.Session(config=config)
     tf.compat.v1.disable_eager_execution()
 
 
