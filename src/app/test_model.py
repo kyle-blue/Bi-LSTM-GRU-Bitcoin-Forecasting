@@ -65,16 +65,16 @@ def test_model():
     # print(predictions[0][0])
 
 
-    # balance = 10000.0
-    # balances = [balance]
-    # wins, losses = [], []
-    # risk = 1.0 # In percentage
-    # commission = 4.0 # As percentage of risk per trade
-    # upper = np.percentile(predictions, 90)
-    # lower = np.percentile(predictions, 10)
-    # print(f"Upper: {upper} --- Lower: {lower}")
+    balance = 10000.0
+    balances = [balance]
+    wins, losses = [], []
+    risk = 1.0 # In percentage
+    commission = 4.0 # As percentage of risk per trade
+    upper = np.percentile(predictions, 90)
+    lower = np.percentile(predictions, 10)
+    print(f"Upper: {upper} --- Lower: {lower}")
 
-    # print(f"\n\nStart Balance: {balance}")
+    print(f"\n\nStart Balance: {balance}")
     num_correct_signs = 0
     for index, prediction in enumerate(predictions):
         prediction = prediction[0]
@@ -82,51 +82,45 @@ def test_model():
         actual = test_y[index]
         if (prediction < 0 and actual < 0) or (prediction > 0 and actual > 0):
             num_correct_signs += 1
-    #     if prediction > upper or prediction < lower:
-    #         com = balance * (risk / 100) * (commission / 100)
-    #         should_buy = prediction > 0 # Buy if positive, sell if negative
-    #         if should_buy:
-    #             new_balance = balance * ((100 + (actual * multiplier)) / 100) - com
-    #         else: # We are selling
-    #             new_balance = balance * ((100 - (actual * multiplier)) / 100) - com
-    #         if new_balance > balance:
-    #             wins.append(abs(actual * multiplier))
-    #         else:
-    #             losses.append(abs(actual * multiplier))
-    #         balance = new_balance
-    #         balances.append(balance)
-    #         prediction_ws = " " if prediction > 0 else "" # Whitespace to align print
-    #         actual_ws = " " if actual > 0 else "" # Whitespace to align print
-    #         # print(f"Prediction: {prediction_ws}{prediction:.3f} --- Actual price dif: {actual_ws}{actual:.3f} --- New Bal: {balance:.2f}")
+        if prediction > upper or prediction < lower:
+            com = balance * (risk / 100) * (commission / 100)
+            should_buy = prediction > 0 # Buy if positive, sell if negative
+            if should_buy:
+                new_balance = balance * ((100 + (actual * multiplier)) / 100) - com
+            else: # We are selling
+                new_balance = balance * ((100 - (actual * multiplier)) / 100) - com
+            if new_balance > balance:
+                wins.append(abs(actual * multiplier))
+            else:
+                losses.append(abs(actual * multiplier))
+            balance = new_balance
+            balances.append(balance)
+            prediction_ws = " " if prediction > 0 else "" # Whitespace to align print
+            actual_ws = " " if actual > 0 else "" # Whitespace to align print
+            # print(f"Prediction: {prediction_ws}{prediction:.3f} --- Actual price dif: {actual_ws}{actual:.3f} --- New Bal: {balance:.2f}")
 
-    # print(f"Final Balance: {balance: .2f}")
-    # print("Showing plot for final balance:")
-    # print(f"{len(balances)} trades executed")
-    # print(f"{len(predictions)} total predictions")
+    print(f"Final Balance: {balance: .2f}")
+    print("Showing plot for final balance:")
+    print(f"{len(balances)} trades executed")
+    print(f"{len(predictions)} total predictions")
     print(f"Correct direction predicted {num_correct_signs} out of {len(predictions)} times ({num_correct_signs/len(predictions)*100: .2f}%)")
-    # print(f"Average win % of acc: {np.average(wins): .2f}")
-    # print(f"Average loss % of acc: {np.average(losses): .2f}")
-    # print(f"Wins: {len(wins)} --- Losses: {len(losses)} --- {len(wins)/(len(wins) + len(losses)) * 100: .2f}% wins")
-    # print(f"% Predictions < 0: {len(predictions[predictions < 0]) / len(predictions) * 100: .4f}%")
+    print(f"Average win % of acc: {np.average(wins): .2f}")
+    print(f"Average loss % of acc: {np.average(losses): .2f}")
+    print(f"Wins: {len(wins)} --- Losses: {len(losses)} --- {len(wins)/(len(wins) + len(losses)) * 100: .2f}% wins")
+    print(f"% Predictions < 0: {len(predictions[predictions < 0]) / len(predictions) * 100: .4f}%")
 
-    # plt.plot(balances)
-    # plt.yscale("log")
-    # plt.title("Balance Over Simulated Trades")
-    # plt.draw()
+    plt.plot(balances)
+    plt.yscale("log")
+    plt.title("Balance Over Simulated Trades")
+    plt.draw()
 
 
     ## Load original price data and plot
-    data_folder = ""
-    if "1min" in seq_info:
-        data_folder = f'{os.environ["WORKSPACE"]}/data/trading/normal_hours/1min'
-    if "5min" in seq_info:
-        data_folder = f'{os.environ["WORKSPACE"]}/data/trading/extended_hours/5min'
-    
-
+    data_folder = f'{os.environ["WORKSPACE"]}/data/crypto'
     temp = seq_info.split('-')
     symbol = temp[0]
-    look_forward = int(temp[-2].strip(string.ascii_letters))
-    sequence_len = int(temp[-3].strip(string.ascii_letters))
+    look_forward = int(temp[1].strip(string.ascii_letters))
+    sequence_len = int(temp[2].strip(string.ascii_letters))
     filename = f"{data_folder}/{symbol}.csv"
     df = pd.read_csv(filename, parse_dates=["Time"])
     df.set_index("Time", inplace=True)
@@ -173,7 +167,7 @@ def test_model():
 
     train_df = train_df.append(true_df, ignore_index=True)
 
-    pred_df.index = range( int(0.8 * len(df)), len(pred_df) + int(0.8 * len(df)) )
+    pred_df.index = range(int(0.8 * len(df)), len(pred_df) + int(0.8 * len(df)) )
 
     plt.figure(figsize=(40, 15))
     plt.plot(train_df)
