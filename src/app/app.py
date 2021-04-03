@@ -20,21 +20,7 @@ import ta
 
 from app.test_model import test_model
 
-### SEQ INFO
-INTERVAL = "1min"
-SYMBOL_TO_PREDICT = "TSLA" # The current symbol to train the model to base predictions on
-FUTURE_PERIOD = 25 # The look forward period for the future column, used to train the neural network to predict future price
-SEQUENCE_LEN = 120 # The look back period aka the sequence length. e.g if this is 100, the last 100 prices will be used to predict future price
-REMOVE_GAP_UPS = True
 
-EPOCHS = 100 # Epochs per training fold (we are doing 10 fold cross validation)
-BATCH_SIZE = 2048
-
-## MODEL INFO
-HIDDEN_LAYERS = 4
-NEURONS_PER_LAYER = 64
-RNN = CuDNNGRU # CuDNNGRU or CuDNNLSTM
-SHOULD_USE_DROPOUT = False
 
 SEQ_INFO = f"{SYMBOL_TO_PREDICT}-{INTERVAL}-SeqLen{SEQUENCE_LEN}-Forward{FUTURE_PERIOD}-{'NoGap' if REMOVE_GAP_UPS else 'Gap'}"
 LAYER_NAME = "LSTM" if RNN is CuDNNLSTM else "GRU"
