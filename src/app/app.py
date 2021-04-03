@@ -82,15 +82,23 @@ def get_main_dataframe():
 
 def add_derived_data(df: pd.DataFrame):
     # Add day column to dataframe
-    days, hours, minutes = [], [], []
+    days, minutes = [], []
     for time in df.index:
         days.append(float(time.weekday()))
-        # hours.append(float(time.hour))
         minutes.append(float(time.minute) + (float(time.hour) * 60))
     df["day"] = days
-    # df["hour"] = hours
     df["minute"] = minutes
 
+    ## Turn into pct change
+    for col in df.columns:
+        if "volume" in col:
+            df[col] = df[col] + 1 # Avoid zero errors
+        if col != "day" and col != "minute":
+            df[col] = df[col].pct_change()
+            df[col].replace([np.inf], 1.0, inplace=True)
+            df[col].replace([-np.inf], 0.0, inplace=True)
+            df.replace([np.inf], 1.0, inplace=True)
+            df.dropna(inplace=True)
 
     ## Add future price column to main_df (which is now the target)
     future = []
@@ -105,24 +113,12 @@ def add_derived_data(df: pd.DataFrame):
     df["target"] = future
     df.dropna(inplace=True)
 
-
-    
-    ##### PREPROCESSING NORMALISATION #####
+    ##### NORMALISATION #####
+    ## Normalise all data (except target price)
     for col in df.columns:
-        if "volume" in col:
-            df[col] = df[col] + 1 # Avoid zero errors
-        if col != "day" and col != "minute":
-            df[col] = df[col].pct_change()
-            df[col].replace([np.inf], 1.0, inplace=True)
-            df[col].replace([-np.inf], 0.0, inplace=True)
-            df.replace([np.inf], 1.0, inplace=True)
-            df.dropna(inplace=True)
         if col != "target":
-            ## Normalise all data (except target price)
             df[col] = normalize(df[col].values)
-
     df.dropna(inplace=True)
-
     
     return df
 
