@@ -118,9 +118,9 @@ def test_model():
     ## Load original price data and plot
     data_folder = f'{os.environ["WORKSPACE"]}/data/crypto'
     temp = seq_info.split('-')
-    symbol = temp[0]
-    look_forward = int(temp[1].strip(string.ascii_letters))
-    sequence_len = int(temp[2].strip(string.ascii_letters))
+    symbol = temp[0] + "-" + temp[1]
+    look_forward = int(temp[2].strip(string.ascii_letters))
+    sequence_len = int(temp[3].strip(string.ascii_letters))
     filename = f"{data_folder}/{symbol}.csv"
     df = pd.read_csv(filename, parse_dates=["Time"])
     df.set_index("Time", inplace=True)
