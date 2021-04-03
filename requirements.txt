@@ -1,6 +1,7 @@
 absl-py==0.11.0
 appdirs==1.4.3
 astroid==2.4.2
+asttokens==2.0.4
 astunparse==1.6.3
 backcall==0.2.0
 CacheControl==0.12.6
@@ -13,6 +14,7 @@ cycler==0.10.0
 decorator==4.4.2
 distlib==0.3.0
 distro==1.4.0
+executing==0.5.4
 fastparquet==0.5.0
 flatbuffers==1.12
 gast==0.3.3
@@ -29,6 +31,7 @@ ipython==7.20.0
 ipython-genutils==0.2.0
 isort==5.7.0
 jedi==0.18.0
+joblib==1.0.1
 jupyter-client==6.1.11
 jupyter-core==4.7.1
 Keras==2.4.3
@@ -57,6 +60,7 @@ progress==1.5
 prompt-toolkit==3.0.16
 protobuf==3.14.0
 ptyprocess==0.7.0
+pure-eval==0.2.1
 pyarrow==3.0.0
 pyasn1==0.4.8
 pyasn1-modules==0.2.8
@@ -72,8 +76,10 @@ requests==2.22.0
 requests-oauthlib==1.3.0
 retrying==1.3.3
 rsa==4.7
+scikit-learn==0.24.1
 scipy==1.6.1
 six==1.15.0
+sklearn==0.0
 ta==0.7.0
 tensorboard==2.4.1
 tensorboard-plugin-wit==1.8.0
@@ -81,6 +87,7 @@ tensorflow==2.4.1
 tensorflow-estimator==2.4.0
 tensorflow-gpu==2.4.1
 termcolor==1.1.0
+threadpoolctl==2.1.0
 thrift==0.13.0
 toml==0.10.2
 tornado==6.1
