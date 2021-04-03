@@ -275,7 +275,7 @@ def train_model():
     tensorboard = TensorBoard(log_dir=f"logs/{SEQ_INFO}__{MODEL_INFO}__{datetime.now().timestamp()}")
 
     filepath = f"{SEQ_INFO}__{MODEL_INFO}__" + "{epoch:02d}-{val_mae:.3f}"  # unique file name that will include the epoch and the validation acc for that epoch
-    checkpoint = ModelCheckpoint(f"models/{filepath}.h5", monitor="val_mae", verbose=1, save_best_only=False, mode='min', save_weights_only=True) # saves only the best ones
+    checkpoint = ModelCheckpoint(f"models/{filepath}.h5", monitor="val_mae", verbose=1, save_best_only=True, mode='min', save_weights_only=True) # saves only the best ones
 
     
     # Train model
@@ -284,7 +284,6 @@ def train_model():
         batch_size=BATCH_SIZE,
         epochs=EPOCHS,
         validation_data=(validation_x, validation_y),
-        # callbacks=[tensorboard, checkpoint, SavePrediction(validation_y)],
         callbacks=[tensorboard, checkpoint],
     )
 
