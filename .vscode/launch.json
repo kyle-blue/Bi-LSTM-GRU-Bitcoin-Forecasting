@@ -8,21 +8,7 @@
             "name": "Main App",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/src/app_main.py",
-            "console": "integratedTerminal",
-            "args": [
-                "-W",
-                "ignore"
-            ],
-            "env": {
-                "WORKSPACE": "${workspaceFolder}"
-            }
-        },
-        {
-            "name": "Preprocess Crypto Datasets",
-            "type": "python",
-            "request": "launch",
-            "program": "${workspaceFolder}/src/dataset_main.py",
+            "program": "${workspaceFolder}/src/__main__.py",
             "console": "integratedTerminal",
             "args": [
                 "-W",
