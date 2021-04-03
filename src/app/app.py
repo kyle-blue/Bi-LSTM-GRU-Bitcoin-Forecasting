@@ -91,6 +91,9 @@ def add_derived_data(df: pd.DataFrame):
     ##### PREPROCESSING NORMALISATION #####
     for col in df.columns:
         ## Normalise all data (except target price)
+        df[col] = df[col].pct_change()
+        df.replace([np.inf], 1.0, inplace=True)
+        df.dropna(inplace=True)
         scaler = MinMaxScaler()
         data = df[col].values.reshape(-1, 1)
         scaler.fit(data)
