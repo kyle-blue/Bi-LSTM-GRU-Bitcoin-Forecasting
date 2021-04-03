@@ -78,7 +78,7 @@ def test_model():
     num_correct_signs = 0
     for index, prediction in enumerate(predictions):
         prediction = prediction[0]
-    #     multiplier = risk / abs(prediction)
+        multiplier = risk / abs(prediction)
         actual = test_y[index]
         if (prediction < 0 and actual < 0) or (prediction > 0 and actual > 0):
             num_correct_signs += 1
@@ -97,7 +97,7 @@ def test_model():
             balances.append(balance)
             prediction_ws = " " if prediction > 0 else "" # Whitespace to align print
             actual_ws = " " if actual > 0 else "" # Whitespace to align print
-            # print(f"Prediction: {prediction_ws}{prediction:.3f} --- Actual price dif: {actual_ws}{actual:.3f} --- New Bal: {balance:.2f}")
+            print(f"Prediction: {prediction_ws}{prediction:.3f} --- Actual price dif: {actual_ws}{actual:.3f} --- New Bal: {balance:.2f}")
 
     print(f"Final Balance: {balance: .2f}")
     print("Showing plot for final balance:")
