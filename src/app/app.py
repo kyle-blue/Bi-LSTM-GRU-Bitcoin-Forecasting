@@ -14,7 +14,6 @@ import ta
 from .parameters import *
 from .RSquaredMetric import RSquaredMetric
 from sklearn.preprocessing import MinMaxScaler
-
 from app.test_model import test_model
 
 SEQ_INFO = f"{SYMBOL_TO_PREDICT}-SeqLen{SEQUENCE_LEN}-Forward{FUTURE_PERIOD}"
@@ -160,14 +159,14 @@ def preprocess_df(df: pd.DataFrame, isTest = False):
 
 
 def get_datasets():
-    FILE_NAMES = ["train_x.npy", "train_y.npy", "validation_x.npy", "validation_y.npy", "test_x.npy", "test_y.npy"]
-    STATE_FOLDER = f'{os.environ["WORKSPACE"]}/state/{SEQ_INFO}'
-    if not os.path.exists(STATE_FOLDER):
-        os.makedirs(STATE_FOLDER)
+    file_names = ["train_x.npy", "train_y.npy", "validation_x.npy", "validation_y.npy", "test_x.npy", "test_y.npy"]
+    state_folder = f'{os.environ["WORKSPACE"]}/state/{SEQ_INFO}'
+    if not os.path.exists(state_folder):
+        os.makedirs(state_folder)
     
     ### Check for existing training data
-    dir_items = os.listdir(STATE_FOLDER)
-    if all([x in dir_items for x in FILE_NAMES]):
+    dir_items = os.listdir(state_folder)
+    if all([x in dir_items for x in file_names]):
         print("\n\nFound an training and validation data. Please select an option:")
         print("1. Use existing data")
         print("2. Generate new data")
@@ -177,12 +176,12 @@ def get_datasets():
             if user_input == 1:
                 is_valid_input = True
                 print("Using existing data...")
-                train_x = np.load(f"{STATE_FOLDER}/{FILE_NAMES[0]}")
-                train_y = np.load(f"{STATE_FOLDER}/{FILE_NAMES[1]}")
-                validation_x = np.load(f"{STATE_FOLDER}/{FILE_NAMES[2]}")
-                validation_y = np.load(f"{STATE_FOLDER}/{FILE_NAMES[3]}")
-                test_x = np.load(f"{STATE_FOLDER}/{FILE_NAMES[3]}")
-                test_y = np.load(f"{STATE_FOLDER}/{FILE_NAMES[4]}")
+                train_x = np.load(f"{state_folder}/{file_names[0]}")
+                train_y = np.load(f"{state_folder}/{file_names[1]}")
+                validation_x = np.load(f"{state_folder}/{file_names[2]}")
+                validation_y = np.load(f"{state_folder}/{file_names[3]}")
+                test_x = np.load(f"{state_folder}/{file_names[3]}")
+                test_y = np.load(f"{state_folder}/{file_names[4]}")
                 return train_x, train_y, validation_x, validation_y, test_x, test_y
             if user_input == 2:
                 print("Generating new arrays of sequences for training...")
@@ -202,12 +201,12 @@ def get_datasets():
     test_x, test_y = preprocess_df(test_df, True)
 
     ## Save data to PKL files
-    np.save(f"{STATE_FOLDER}/{FILE_NAMES[0]}", train_x)
-    np.save(f"{STATE_FOLDER}/{FILE_NAMES[1]}", train_y)
-    np.save(f"{STATE_FOLDER}/{FILE_NAMES[2]}", validation_x)
-    np.save(f"{STATE_FOLDER}/{FILE_NAMES[3]}", validation_y)
-    np.save(f"{STATE_FOLDER}/{FILE_NAMES[4]}", test_x)
-    np.save(f"{STATE_FOLDER}/{FILE_NAMES[5]}", test_y)
+    np.save(f"{state_folder}/{file_names[0]}", train_x)
+    np.save(f"{state_folder}/{file_names[1]}", train_y)
+    np.save(f"{state_folder}/{file_names[2]}", validation_x)
+    np.save(f"{state_folder}/{file_names[3]}", validation_y)
+    np.save(f"{state_folder}/{file_names[4]}", test_x)
+    np.save(f"{state_folder}/{file_names[5]}", test_y)
 
     print(f"\n\nMAIN DF FOR {SYMBOL_TO_PREDICT}")
     print(df.head(15))
@@ -221,9 +220,10 @@ def get_datasets():
 
 def start():
     ## Only allocate required GPU space
-    gpu_options = tf.GPUOptions(allow_growth=True)
-    config = tf.ConfigProto(gpu_options=gpu_options)
-    session = tf.python.compat.v1.Session(config=config)
+    config = tf.compat.v1.ConfigProto()
+    config.gpu_options.allow_growth = True
+    session = tf.compat.v1.Session(config=config)
+
     tf.compat.v1.disable_eager_execution()
 
 

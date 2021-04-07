@@ -18,7 +18,7 @@ class Symbol (Enum):
 
 
 ## CuDNNN / GPU versions are applied automatically
-class Model (Enum):
+class Architectures (Enum):
     LSTM = LSTM
     GRU = GRU
 
@@ -36,7 +36,7 @@ BATCH_SIZE = 1024
 ## MODEL INFO
 HIDDEN_LAYERS = 4
 NEURONS_PER_LAYER = 64
-MODEL = Model.GRU.value
+MODEL = Architectures.GRU.value
 DROPOUT = 0.0
 
 
