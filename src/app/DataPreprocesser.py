@@ -15,20 +15,20 @@ def standardise(arr: np.array):
 class DataPreprocesser():
     def __init__(self, dataset_folder: str, col_names: List[str], forecast_col_name:str, *,
         max_dataset_size = 100000, forecast_period = 1, sequence_length = 100,
-        state_folder: str = None, test_split = 0.2, val_split = 0.2, forecast_file: str = None):
+        test_split = 0.2, val_split = 0.2, forecast_file: str = "."):
         """
         """
         ## Param member vars
         self.forecast_period = forecast_period
         self.max_dataset_size = max_dataset_size
         self.sequence_length = sequence_length
-        self.state_folder = state_folder
-        self.forecast_file = forecast_file
+        self.forecast_file = forecast_file.split(".")[0]
         self.forecast_col_name = forecast_col_name
         self.test_split = test_split
         self.val_split = val_split
         self.dataset_folder = dataset_folder
         self.col_names = col_names
+        self.state_folder = f"{os.environ['WORKSPACE']}/{self.get_seq_info_str()}"
 
         ## Other Member vars
         self.df = pd.DataFrame()
