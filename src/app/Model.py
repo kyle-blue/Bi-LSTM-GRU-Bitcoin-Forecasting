@@ -18,6 +18,9 @@ class Model():
         max_epochs = 100, batch_size = 1024, hidden_layers = 2,
         neurons_per_layer = 64, architecture = Architecture.LSTM.value, dropout = 0.1,
         is_bidirectional = False, initial_learn_rate = 0.001, early_stop_patience = 6):
+        """
+        INFO GOES HERE
+        """
 
         ## Param member vars
         self.max_epochs = max_epochs

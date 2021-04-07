@@ -1,22 +1,8 @@
-from datetime import datetime
-from typing import Deque
-from numpy.core.numeric import NaN
 import tensorflow as tf
-from tensorflow.python.keras.models import Sequential
-from tensorflow.python.keras.layers import Dense, Dropout, BatchNormalization
-from tensorflow.python.keras.callbacks import TensorBoard, ModelCheckpoint
-import numpy as np
-import pandas as pd
-from collections import deque
 import os
-import random
-import ta
 from app.DataPreprocesser import DataPreprocesser
-
 from app.Model import Model
-from .parameters import *
-from .RSquaredMetric import RSquaredMetric
-from sklearn.preprocessing import MinMaxScaler
+from app.parameters import Architecture, Symbol
 from app.test_model import test_model
 
 
@@ -82,6 +68,7 @@ def train_model():
         forecast_file=f"{Symbol.BTC_USDT.value}.parquet",
         sequence_length=250
     )
+    preprocessor.preprocess()
 
     train_x, train_y = preprocessor.get_train()
     validation_x, validation_y = preprocessor.get_validation()
@@ -91,6 +78,9 @@ def train_model():
         preprocessor.get_seq_info_str(),
         architecture=Architecture.LSTM.value
     )
+    
+    preprocessor.print_dataset_totals()
+    del preprocessor # Save memory
 
     model.train()
     model.save_model()
