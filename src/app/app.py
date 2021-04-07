@@ -19,9 +19,6 @@ from app.test_model import test_model
 SEQ_INFO = f"{SYMBOL_TO_PREDICT}-SeqLen{SEQUENCE_LEN}-Forward{FUTURE_PERIOD}"
 MODEL_INFO = f"{MODEL.__name__}-HidLayers{HIDDEN_LAYERS}-Neurons{NEURONS_PER_LAYER}"
 
-def normalize(arr: np.array):
-    return (arr - np.mean(arr)) / np.std(arr)
-
 def get_main_dataframe():
     PICKLE_NAME = "dataframe.pkl"
     PICKLE_FOLDER = f'{os.environ["WORKSPACE"]}/state/{SEQ_INFO}'
