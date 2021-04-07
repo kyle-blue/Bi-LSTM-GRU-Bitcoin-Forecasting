@@ -1,21 +1,13 @@
 from datetime import datetime
-from typing import Deque
-from numpy.core.numeric import NaN
 import tensorflow as tf
 from tensorflow.python.keras.models import Sequential
 from tensorflow.python.keras.layers import Dense, Dropout, BatchNormalization
-from tensorflow.python.keras.callbacks import TensorBoard, ModelCheckpoint
+from tensorflow.python.keras.callbacks import TensorBoard, EarlyStopping
 import numpy as np
-import pandas as pd
-from collections import deque
 import os
-import random
-import ta
 
 from app.parameters import Architecture
 from .RSquaredMetric import RSquaredMetric
-from sklearn.preprocessing import MinMaxScaler
-from app.test_model import test_model
 
 
 # DATASET = Dataset.WEATHER.value
@@ -53,7 +45,7 @@ class Model():
         ## Other member vars
         self.model = Sequential()
         self.training_history = None
-        self.score = []
+        self.score: list = []
 
         self.create_model()
         
@@ -94,7 +86,7 @@ class Model():
 
 
     def train(self):
-        early_stop = tf.keras.callbacks.EarlyStopping(monitor='loss', early_stop_patience=6)
+        early_stop = EarlyStopping(monitor='loss', early_stop_patience=6)
         tensorboard = TensorBoard(log_dir=f"logs/{self.seq_info}__{self.get_model_info_str()}__{datetime.now().timestamp()}")
 
         # Train model
@@ -120,7 +112,7 @@ class Model():
         self.model.save_weights(f"models/final/{self.seq_info}__{self.get_model_info_str()}__{self.max_epochs}-{self.score[2]:.3f}.h5")
 
     def get_model_info_str(self):
-        return f"{self.architecture.__name__}-HidLayers{self.hidden_layers}-Neurons{self.neurons_per_layer}""
+        return f"{self.architecture.__name__}-HidLayers{self.hidden_layers}-Neurons{self.neurons_per_layer}"
 
     def save_model_config(self):
         json_config = self.model.to_json()
