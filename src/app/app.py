@@ -16,8 +16,6 @@ from .RSquaredMetric import RSquaredMetric
 from sklearn.preprocessing import MinMaxScaler
 from app.test_model import test_model
 
-SEQ_INFO = f"{SYMBOL_TO_PREDICT}-SeqLen{SEQUENCE_LEN}-Forward{FUTURE_PERIOD}"
-MODEL_INFO = f"{MODEL.__name__}-HidLayers{HIDDEN_LAYERS}-Neurons{NEURONS_PER_LAYER}"
 
 def get_main_dataframe():
     PICKLE_NAME = "dataframe.pkl"
@@ -246,9 +244,7 @@ def train_model():
 
     train_x, train_y, validation_x, validation_y, test_x, test_y = get_datasets()
 
-    print(f"Training total: {len(train_y)}")
-    print(f"Validation total: {len(validation_y)}")
-    print(f"Test total: {len(test_y)}")
+    
 
     ##### Compile / Train the model ###
     

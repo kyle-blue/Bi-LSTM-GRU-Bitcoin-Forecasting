@@ -67,6 +67,26 @@ class DataPreprocesser():
         self.print_df()    
 
 
+    def print_dataset_totals(self):
+        print(f"Training total: {len(self.train_y)}")
+        print(f"Validation total: {len(self.validation_y)}")
+        print(f"Test total: {len(self.test_y)}")
+
+    def get_seq_info_str(self):
+        return f"{str(self.forecast_file)}-SeqLen{self.sequence_length}-Forward{self.forecast_period}"
+
+    def get_datasets(self):
+        return self.train_x, self.train_y, self.validation_x, self.validation_y, self.test_x, self.test_y
+    
+    def get_train(self):
+        return self.train_x, self.train_y
+    
+    def get_validation(self):
+        return self.validation_x, self.validation_y
+
+    def get_test(self):
+        return self.test_x, self.test_y
+
     def get_df(self):
         return self.df
 
@@ -206,7 +226,8 @@ class DataPreprocesser():
     def _get_main_dataframe(self):
         is_multiple_dataset_files = len(set(os.listdir(self.dataset_folder))) > 1
         if not is_multiple_dataset_files:
-            df = self._load_df(os.listdir(self.dataset_folder)[0])
+            self.forecast_file = os.listdir(self.dataset_folder)[0]
+            df = self._load_df(self.forecast_file)
             df = df[-self.max_dataset_size:] # Reduce dataset size to max size
             df.dropna(inplace=True)
             return df
