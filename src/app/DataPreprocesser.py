@@ -251,6 +251,7 @@ class DataPreprocesser():
             path = f"{self.dataset_folder}/{file}"
             df = pd.DataFrame()
             df = self._load_df(path)
+            df = df[-self.max_dataset_size:] # Reduce dataset size to max size
             df = df[self.col_names]
 
             rename_dict = {}
@@ -258,7 +259,7 @@ class DataPreprocesser():
                 rename_dict[col_name] = f"{file_name}_{col_name}"
             df.rename(columns=rename_dict, inplace=True)
 
-            df = df[-self.max_dataset_size:] # Reduce dataset size to max size
+            
 
             if len(main_df) == 0: main_df = df
             else: main_df = main_df.join(df, how="outer")
