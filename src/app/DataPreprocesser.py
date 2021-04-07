@@ -18,35 +18,93 @@ class DataPreprocesser():
         state_folder: str = None, test_split = 0.2, val_split = 0.2, forecast_file: str = None):
         """
         """
+        ## Param member vars
         self.forecast_period = forecast_period
         self.max_dataset_size = max_dataset_size
         self.sequence_length = sequence_length
         self.state_folder = state_folder
         self.forecast_file = forecast_file
         self.forecast_col_name = forecast_col_name
-        self.test_split, self.val_split = test_split, val_split
+        self.test_split = test_split
+        self.val_split = val_split
         self.dataset_folder = dataset_folder
         self.col_names = col_names
+
+        ## Other Member vars
+        self.df = pd.DataFrame()
+        self.df_original = pd.DataFrame() # Original df, no standardisation
+        self.df_no_std = pd.DataFrame() # Original df, but with pct_change applied
+
+        self.train_x, self.train_y = np.array([]), np.array([]) 
+        self.validation_x, self.validation_y = np.array([]), np.array([]) 
+        self.test_x, self.test_y = np.array([]), np.array([]) 
 
         if state_folder is not None and not os.path.exists(state_folder):
             os.makedirs(state_folder)
         
         ### Check for existing training data
-        if self.is_existing_data() and self.should_use_existing_data():
-            self.load_existing_data()
+        if self._is_existing_data() and self._should_use_existing_data():
+            self._load_existing_data() # Loads sequences
         else:
-            self.generate_data()
+            self._generate_df()
+
+
+    ### PUBLIC FUNCTIONS ###
+
+    def generate_datasets_from_df(self): # This must be done from outside this class
+        ## Split validation and training set
+        train_and_val_df, test_df = np.split(self.df, [-int(self.test_split * len(self.df))])
+        train_and_val_df.sample(frac = 1) # Shuffle validation and train together (but not test)
+        train_df, validation_df = np.split(train_and_val_df, [-int(self.val_split * len(self.df))]) # Validation is same size as test_df
+
+        ## Make sequences
+        self.train_x, self.train_y = self._make_sequences(train_df)
+        self.validation_x, self.validation_y = self._make_sequences(validation_df)
+        self.test_x, self.test_y = self._make_sequences(test_df, should_shuffle = False)
+
+        ## Save sequences to npy files
+        self.save_datasets()
+        self.print_df()    
 
 
     def get_df(self):
         return self.df
 
-    def is_existing_data(self):
+    def get_df_original(self):
+        return self.df_original
+
+    def get_df_no_std(self):
+        return self.df_no_std
+
+    def add_data(self, data: pd.DataFrame):
+        """
+        Adds additional data to the main dataframe
+        """
+        self.df.join(data, how="outer")
+        self.df.dropna(inplace=True)
+
+    def print_df(self):
+        print(f"\n\nMAIN DF FOR PREDICTING: {self.forecast_col_name}")
+        print(self.df.head(15))
+
+    def save_datasets(self):
+        np.save(f"{self.state_folder}/{__file_names[0]}", self.train_x)
+        np.save(f"{self.state_folder}/{__file_names[1]}", self.train_y)
+        np.save(f"{self.state_folder}/{__file_names[2]}", self.validation_x)
+        np.save(f"{self.state_folder}/{__file_names[3]}", self.validation_y)
+        np.save(f"{self.state_folder}/{__file_names[4]}", self.test_x)
+        np.save(f"{self.state_folder}/{__file_names[5]}", self.test_y)
+
+
+    ### PRIVATE FUNCTIONS ###    
+        
+
+    def _is_existing_data(self):
         dir_items = os.listdir(self.state_folder)
         print("\n\nFound an training and validation data.")
         return all([x in dir_items for x in __file_names])
 
-    def should_use_existing_data(self):
+    def _should_use_existing_data(self):
         """
         Asks the user whether they would like to use existing data
         """
@@ -62,7 +120,7 @@ class DataPreprocesser():
 
     
     
-    def load_existing_data(self):
+    def _load_existing_data(self):
         print("Using existing data...")
         self.train_x = np.load(f"{self.state_folder}/{__file_names[0]}")
         self.train_y = np.load(f"{self.state_folder}/{__file_names[1]}")
@@ -71,38 +129,23 @@ class DataPreprocesser():
         self.test_x = np.load(f"{self.state_folder}/{__file_names[3]}")
         self.test_y = np.load(f"{self.state_folder}/{__file_names[4]}")
 
-    def generate_data(self):
+    def _generate_df(self):
         print("Generating new arrays of sequences for training...")
-        self.df = self.get_main_dataframe()
+        self.df = self._get_main_dataframe()
         self.print_df()
-        self.df = self.preprocess_df()
-
-        ## Split validation and training set
-        train_and_val_df, test_df = np.split(self.df, [-int(self.test_split * len(self.df))])
-        train_and_val_df.sample(frac = 1) # Shuffle validation and train together (but not test)
-        train_df, validation_df = np.split(train_and_val_df, [-int(self.val_split * len(self.df))]) # Validation is same size as test_df
-
-        ## Preprocess
-        train_x, train_y = self.make_sequences(train_df)
-        validation_x, validation_y = self.make_sequences(validation_df)
-        test_x, test_y = self.make_sequences(test_df, should_shuffle = False)
-
-        ## Save data to PKL files
-        self.save_datasets()
-        self.print_df()        
-
-        return train_x, train_y, validation_x, validation_y, test_x, test_y
-
-    def print_df(self):
-        print(f"\n\nMAIN DF FOR PREDICTING: {self.forecast_col_name}")
-        print(self.df.head(15))
+        self.df = self._preprocess_df()    
 
 
-    def preprocess_df(self):
+    
+
+
+    def _preprocess_df(self):
         """
         Add target and standardise data in df
         """
         
+        self.df_original = self.df.copy()
+
         ## Turn into pct change
         for col in self.df.columns:
             if str(col).endswith("_volume"):
@@ -111,7 +154,10 @@ class DataPreprocesser():
             self.df[col].replace([np.inf, -np.inf], NaN, inplace=True)
             self.df.dropna(inplace=True)
 
-        self.add_target()
+        self._add_target()
+        self.df_original["target"] = self.df["target"]
+
+        self.df_no_std = self.df.copy()
 
         ##### STANDARDISATION #####
         ## Normalise all data (except target price)
@@ -121,7 +167,7 @@ class DataPreprocesser():
         self.df.dropna(inplace=True)
         
 
-    def add_target(self):
+    def _add_target(self):
         """
         When adding the target, the df columns must be in percent change, and not yet normalised
         """
@@ -146,16 +192,10 @@ class DataPreprocesser():
         self.df.dropna(inplace=True)
 
 
-    def save_datasets(self):
-        np.save(f"{self.state_folder}/{__file_names[0]}", self.train_x)
-        np.save(f"{self.state_folder}/{__file_names[1]}", self.train_y)
-        np.save(f"{self.state_folder}/{__file_names[2]}", self.validation_x)
-        np.save(f"{self.state_folder}/{__file_names[3]}", self.validation_y)
-        np.save(f"{self.state_folder}/{__file_names[4]}", self.test_x)
-        np.save(f"{self.state_folder}/{__file_names[5]}", self.test_y)
+    
 
 
-    def load_df(self, path: str, *, date_column = "time"):
+    def _load_df(self, path: str, *, date_column = "time"):
         if path.endswith(".parquet"):
             df = pd.read_parquet(path) # Index is automatically set to open_time
         else:
@@ -163,10 +203,10 @@ class DataPreprocesser():
         return df
 
 
-    def get_main_dataframe(self):
+    def _get_main_dataframe(self):
         is_multiple_dataset_files = len(set(os.listdir(self.dataset_folder))) > 1
         if not is_multiple_dataset_files:
-            df = self.load_df(os.listdir(self.dataset_folder)[0])
+            df = self._load_df(os.listdir(self.dataset_folder)[0])
             df = df[-self.max_dataset_size:] # Reduce dataset size to max size
             df.dropna(inplace=True)
             return df
@@ -177,7 +217,7 @@ class DataPreprocesser():
         for file in files:
             file_name =  file.split(".")[0] # Remove file extension from file
             df = pd.DataFrame()
-            df = self.load_df(file)
+            df = self._load_df(file)
             df = df[self.col_names]
 
             rename_dict = {}
@@ -194,14 +234,13 @@ class DataPreprocesser():
         return main_df
 
 
-    ## @returns train_x and train_y
-    def make_sequences(self, df, *, should_shuffle = True):
+    ## returns train_x and train_y
+    def _make_sequences(self, df, *, should_shuffle = True):
         ## Create sequences
         # [
         #    [[sequence1], target1]
         #    [[sequence2], target2]
-        # ]
-        
+        # ]        
         
         ## MAKE INTO SEQUENCES
         sequences: list = [] 

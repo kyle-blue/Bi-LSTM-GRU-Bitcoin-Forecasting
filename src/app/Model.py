@@ -24,8 +24,9 @@ from app.test_model import test_model
 
 # TODO: I don't think we need future period, max dataset size, seq_len, symbol_to_predict, dataset. This is the job of DataPreprocesser 
 class Model():
-    def __init__(self, *,  epochs = 100, batch_size = 1024, hidden_layers = 2,
+    def __init__(self, *,  max_epochs = 100, batch_size = 1024, hidden_layers = 2,
         neurons_per_layer = 64, model = Architectures.LSTM.value, dropout = 0.1,
-        is_bidirectional = False):
-        print("")
+        is_bidirectional = False, initial_learn_rate = 0.001):
+        
+
     
