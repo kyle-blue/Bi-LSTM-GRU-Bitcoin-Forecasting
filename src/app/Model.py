@@ -1,7 +1,7 @@
 from datetime import datetime
 import tensorflow as tf
 from tensorflow.python.keras.models import Sequential
-from tensorflow.python.keras.layers import Dense, Dropout, BatchNormalization, LSTM, GRU, CuDNNLSTM, CuDNNGRU
+from tensorflow.python.keras.layers import Dense, Dropout, BatchNormalization, LSTM, GRU, CuDNNLSTM, CuDNNGRU, Bidirectional
 from tensorflow.python.keras.callbacks import TensorBoard, EarlyStopping
 from tensorflow.python.client import device_lib
 import numpy as np
@@ -76,7 +76,7 @@ class Model():
         self._save_model_weights()
 
     def get_model_info_str(self):
-        return f"{self.architecture.__name__}-HidLayers{self.hidden_layers}-Neurons{self.neurons_per_layer}"
+        return f"{'Bi' if self.is_bidirectional else ''}{self.architecture.__name__}-HidLayers{self.hidden_layers}-Neurons{self.neurons_per_layer}-Bat{self.batch_size}-Drop{self.dropout}"
 
     ### PRIVATE FUNCTIONS
 
@@ -90,14 +90,20 @@ class Model():
         ##### Create the model ####
         self.model = Sequential()
         
-        self.model.add(self.architecture(self.neurons_per_layer, input_shape=(self.train_x.shape[1:]), return_sequences=True))
+        if self.is_bidirectional:
+            self.model.add(Bidirectional(self.architecture(self.neurons_per_layer, input_shape=(self.train_x.shape[1:]), return_sequences=True)))
+        else:
+            self.model.add(self.architecture(self.neurons_per_layer, input_shape=(self.train_x.shape[1:]), return_sequences=True))
         self.model.add(Dropout(self.dropout))
         self.model.add(BatchNormalization())
 
         
         for i in range(self.hidden_layers):
             return_sequences = i != self.hidden_layers - 1 # False on last iter
-            self.model.add(self.architecture(self.neurons_per_layer, return_sequences=return_sequences))
+            if self.is_bidirectional:
+                self.model.add(Bidirectional(self.architecture(self.neurons_per_layer, return_sequences=return_sequences)))
+            else:
+                self.model.add(self.architecture(self.neurons_per_layer, return_sequences=return_sequences))
             self.model.add(Dropout(self.dropout))
             self.model.add(BatchNormalization())
 

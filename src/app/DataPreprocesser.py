@@ -15,7 +15,8 @@ def standardise(arr: np.array):
 class DataPreprocesser():
     def __init__(self, dataset_folder: str, col_names: List[str], forecast_col_name:str, *,
         max_dataset_size = 100000, forecast_period = 1, sequence_length = 100,
-        test_split = 0.2, val_split = 0.2, forecast_file: str = "."):
+        test_split = 0.2, val_split = 0.2, forecast_file: str = ".",
+        should_ask_load = True):
         """
         INFO GOES HERE
         """
@@ -46,7 +47,7 @@ class DataPreprocesser():
             os.makedirs(self.state_folder)
         
         ### Check for existing training data
-        if self._is_existing_data() and self._should_use_existing_data():
+        if should_ask_load and self._is_existing_data() and self._should_use_existing_data():
             self._load_existing_data() # Loads sequences
         else:
             self._generate_df()
