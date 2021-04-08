@@ -9,4 +9,3 @@ if __name__ == "__main__":
     work_dir = os.path.normpath(cur_dir + "/../")
     os.environ["WORKSPACE"] = work_dir
     main()
-    

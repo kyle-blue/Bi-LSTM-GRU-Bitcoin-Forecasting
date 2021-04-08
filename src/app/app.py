@@ -6,6 +6,7 @@ from app.parameters import Architecture, Symbol
 from app.test_model import SYMBOL, test_model
 import ta
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 # TODO: Uncomment this part??
@@ -112,18 +113,35 @@ def indicator_correlations():
             df = ta.add_all_ta_features(
                 df, f"{SYMBOL_TO_PREDICT}_open", f"{SYMBOL_TO_PREDICT}_high", 
                 f"{SYMBOL_TO_PREDICT}_low", f"{SYMBOL_TO_PREDICT}_close",
-                f"{SYMBOL_TO_PREDICT}_volume", fillna=True, colprefix=SYMBOL_TO_PREDICT
+                f"{SYMBOL_TO_PREDICT}_volume", fillna=True, colprefix=f"{SYMBOL_TO_PREDICT}_ind_"
             )
             df.dropna(inplace=True)
 
     print("Added all indicators!")
+
+    ## Remove non-indicators
+    for col in df.columns:
+        is_indicator = "_ind_" in col
+        if not is_indicator:
+            del df[col]
+
+    print("Removed all non-indicators!")
     print(df)
 
     correlations = df.corr()
-    figure = plt.figure()
-    plt.matshow(correlations, fignum=figure.number)
-    plt.colorbar()
-    plt.title('Correlation Matrix', fontsize=16);
+    figure = plt.figure(figsize=(30, 30))
+    ax = figure.add_subplot(1, 1, 1)
+    cax = ax.matshow(correlations, interpolation="nearest")
+    cb = figure.colorbar(cax)
+    cb.ax.tick_params(labelsize=30)
+    plt.title('Correlation Matrix', fontsize=40)
+
+    ax.set_xticks(list(range(len(df.columns))))
+    ax.set_xticklabels(df.columns,fontsize=10)
+    ax.set_yticks(list(range(len(df.columns))))
+    ax.set_yticklabels(df.columns, fontsize=10)
+    plt.xticks(rotation=90)
+    
     plt.show()
 
 
