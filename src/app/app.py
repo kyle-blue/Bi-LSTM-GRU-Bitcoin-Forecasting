@@ -136,14 +136,39 @@ def indicator_correlations():
     cb.ax.tick_params(labelsize=30)
     plt.title('Correlation Matrix', fontsize=40)
 
-    ax.set_xticks(list(range(len(df.columns))))
-    ax.set_xticklabels(df.columns,fontsize=10)
-    ax.set_yticks(list(range(len(df.columns))))
-    ax.set_yticklabels(df.columns, fontsize=10)
+    ax.set_xticks(list(range(len(correlations.columns))))
+    ax.set_xticklabels(correlations.columns,fontsize=10)
+    ax.set_yticks(list(range(len(correlations.columns))))
+    ax.set_yticklabels(correlations.columns, fontsize=10)
     plt.xticks(rotation=90)
     
     plt.show()
 
+    num_indicators = 10
+    while len(correlations.columns) > num_indicators:
+        # Get index of max correlation
+        np_cor = correlations.to_numpy()
+        max_row_index, max_col_index = np.unravel_index(np_cor.argmax(), np_cor.shape)
+        # Delete chosen indicators rows and columns
+        correlations.drop(correlations.index[max_row_index], axis="index", inplace=True)
+        correlations.drop(correlations.columns[max_row_index], axis="columns", inplace=True)
+
+    print("Reduced to 10 indictors with low correlations!")
+
+    figure = plt.figure(figsize=(15, 15))
+    ax = figure.add_subplot(1, 1, 1)
+    cax = ax.matshow(correlations, interpolation="nearest")
+    cb = figure.colorbar(cax)
+    cb.ax.tick_params(labelsize=15)
+    plt.title('Correlation Matrix', fontsize=20)
+
+    ax.set_xticks(list(range(len(correlations.columns))))
+    ax.set_xticklabels(correlations.columns,fontsize=12)
+    ax.set_yticks(list(range(len(correlations.columns))))
+    ax.set_yticklabels(correlations.columns, fontsize=12)
+    plt.xticks(rotation=90)
+    
+    plt.show()
 
             # ind = ta.trend.MACD(df[f"{symbol}_close"], fillna=True)
             # df[f"{symbol}_macd_fast"] = ind.macd()
