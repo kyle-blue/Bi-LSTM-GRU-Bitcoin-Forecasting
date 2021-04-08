@@ -104,12 +104,26 @@ class DataPreprocesser():
     def get_df_no_std(self):
         return self.df_no_std
 
-    def add_data(self, data: pd.DataFrame):
+    def add_data(self, data: pd.DataFrame, *, apply_pct_chg = True):
         """
-        Adds additional data to the main dataframe
+        Adds additional data to the main dataframe and (potentially) applies percent change then (definitely) standardises.
+        Be sure to only add new columns
         """
+        self.df_original.join(data, how="outer")
+        self.df_original.dropna(inplace=True)
+
+        if apply_pct_chg:
+            data = self._pct_chg(data)
+            self.df_no_std.join(data, how="outer")
+            self.df_no_std.dropna(inplace=True)
+        
+
+        data = self._standardise(data)
         self.df.join(data, how="outer")
         self.df.dropna(inplace=True)
+
+
+
 
     def print_df(self):
         print(f"\n\nMAIN DF FOR PREDICTING: {self.forecast_col_name}")
@@ -167,7 +181,23 @@ class DataPreprocesser():
         self._preprocess_df()    
 
 
-    
+    def _pct_chg(self, df: pd.DataFrame):
+        for col in df.columns:
+            if str(col).endswith("_volume"):
+                df[col] = df[col] + 1 # Avoid zero errors
+            df[col] = df[col].pct_change()
+            df[col].replace([np.inf, -np.inf], NaN, inplace=True)
+            df.dropna(inplace=True)
+        return df
+
+    def _standardise(self, df: pd.DataFrame):
+        ##### STANDARDISATION #####
+        ## Normalise all data (except target price)
+        for col in df.columns:
+            if col != "target": # Don't normalise the target!
+                df[col] = standardise(df[col].values)
+        df.dropna(inplace=True)
+        return df
 
 
     def _preprocess_df(self):
@@ -178,25 +208,14 @@ class DataPreprocesser():
         self.df_original = self.df.copy()
 
         ## Turn into pct change
-        for col in self.df.columns:
-            if str(col).endswith("_volume"):
-                self.df[col] = self.df[col] + 1 # Avoid zero errors
-            self.df[col] = self.df[col].pct_change()
-            self.df[col].replace([np.inf, -np.inf], NaN, inplace=True)
-            self.df.dropna(inplace=True)
+        self.df = self._pct_chg(self.df)
 
         self._add_target()
         self.df_original["target"] = self.df["target"]
 
         self.df_no_std = self.df.copy()
 
-        ##### STANDARDISATION #####
-        ## Normalise all data (except target price)
-        for col in self.df.columns:
-            if col != "target": # Don't normalise the target!
-                self.df[col] = standardise(self.df[col].values)
-        self.df.dropna(inplace=True)
-        
+        self.df = self._standardise(self.df)
 
     def _add_target(self):
         """
