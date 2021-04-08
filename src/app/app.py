@@ -149,9 +149,12 @@ def indicator_correlations():
         # Get index of max correlation
         np_cor = correlations.to_numpy()
         max_row_index, max_col_index = np.unravel_index(np_cor.argmax(), np_cor.shape)
-        # Delete chosen indicators rows and columns
-        correlations.drop(correlations.index[max_row_index], axis="index", inplace=True)
-        correlations.drop(correlations.columns[max_row_index], axis="columns", inplace=True)
+        row_ind_sum = correlations.iloc[max_row_index].sum()
+        col_ind_sum = correlations.iloc[max_col_index].sum()
+        higher_cor_sum_index = max_row_index if row_ind_sum > col_ind_sum else max_col_index
+        # Drop indicator with higher overall correlation (between all indicators)
+        correlations.drop(correlations.index[higher_cor_sum_index], axis="index", inplace=True)
+        correlations.drop(correlations.columns[higher_cor_sum_index], axis="columns", inplace=True)
 
     print("Reduced to 10 indictors with low correlations!")
 
