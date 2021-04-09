@@ -17,7 +17,8 @@ class Model():
         *,
         max_epochs = 100, batch_size = 1024, hidden_layers = 2,
         neurons_per_layer = 64, architecture = Architecture.LSTM.value, dropout = 0.1,
-        is_bidirectional = False, initial_learn_rate = 0.001, early_stop_patience = 6):
+        is_bidirectional = False, initial_learn_rate = 0.001, early_stop_patience = 6,
+        random_seed=None):
         """
         INFO GOES HERE
         """
@@ -33,6 +34,7 @@ class Model():
         self.initial_learn_rate = initial_learn_rate
         self.seq_info = seq_info
         self.early_stop_patience = early_stop_patience
+        self.random_seed = random_seed
 
         self.train_x = train_x
         self.train_y = train_y
@@ -42,7 +44,7 @@ class Model():
         ## Other member vars
         self.model = Sequential()
         self.training_history = None
-        self.score: list = []
+        self.score: dict = {}
 
         self._create_model()
         
@@ -66,10 +68,8 @@ class Model():
         )
 
         # Score model
-        self.score = self.model.evaluate(self.validation_x, self.validation_y, verbose=0)
+        self.score = self.model.evaluate(self.validation_x, self.validation_y, verbose=0, return_dict=True)
         print('Scores:', self.score)
-        # Save model
-        self.model.save_weights(f"models/final/{self.seq_info}__{self.get_model_info_str()}__{self.max_epochs}-{self.score[2]:.3f}.h5")
 
     def save_model(self):
         self._save_model_config()
@@ -94,7 +94,7 @@ class Model():
             self.model.add(Bidirectional(self.architecture(self.neurons_per_layer, input_shape=(self.train_x.shape[1:]), return_sequences=True)))
         else:
             self.model.add(self.architecture(self.neurons_per_layer, input_shape=(self.train_x.shape[1:]), return_sequences=True))
-        self.model.add(Dropout(self.dropout))
+        self.model.add(Dropout(self.dropout, seed=self.random_seed))
         self.model.add(BatchNormalization())
 
         
@@ -104,7 +104,7 @@ class Model():
                 self.model.add(Bidirectional(self.architecture(self.neurons_per_layer, return_sequences=return_sequences)))
             else:
                 self.model.add(self.architecture(self.neurons_per_layer, return_sequences=return_sequences))
-            self.model.add(Dropout(self.dropout))
+            self.model.add(Dropout(self.dropout, seed=self.random_seed))
             self.model.add(BatchNormalization())
 
         self.model.add(Dense(1))
@@ -117,7 +117,6 @@ class Model():
             metrics=["mae", RSquaredMetric]
 
         )
-        self._save_model_config()
 
 
     def _use_gpu_if_available(self):

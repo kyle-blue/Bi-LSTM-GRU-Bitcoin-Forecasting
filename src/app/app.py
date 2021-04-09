@@ -1,5 +1,8 @@
+import math
 import tensorflow as tf
 import os
+
+from tensorflow.python.ops.gen_batch_ops import batch
 from app.Chromosome import Chromosome, Limit
 from app.DataPreprocesser import DataPreprocesser
 from app.GeneticAlgorithm import GeneticAlgorithm
@@ -8,10 +11,13 @@ from app.parameters import Architecture, Symbol
 from app.test_model import test_model
 from .indicator_correlations import indicator_correlations
 import matplotlib.pyplot as plt
+import numpy as np
+import random
+import tensorflow.keras.backend as K
 
 SYMBOL_TO_PREDICT = Symbol.BTC_USDT.value
 
-def init_tf():
+def create_tf_session():
     ## Only allocate required GPU space
     config = tf.compat.v1.ConfigProto()
     config.gpu_options.allow_growth = True
@@ -21,7 +27,7 @@ def init_tf():
 
 
 def start():
-    init_tf()
+    create_tf_session()
 
     print("\n\n\n")
     print("Please choose an option:")
@@ -76,7 +82,31 @@ def train_model():
     model.save_model()
 
 
+def set_session_seed(seed: int):
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    random.seed(seed)
+    np.random.seed(seed)
+    tf.compat.v1.set_random_seed(seed)
+
+
 def optimise_params():
+    random_seed = 12321
+    set_session_seed(random_seed)
+
+
+    preprocessor = DataPreprocesser(
+        f"{os.environ['WORKSPACE']}/data/crypto",
+        col_names=["open", "high", "low", "close", "volume"],
+        forecast_col_name="close",
+        forecast_file=f"{SYMBOL_TO_PREDICT}.parquet",
+        sequence_length=250
+    )
+    preprocessor.preprocess()
+
+    train_x, train_y = preprocessor.get_train()
+    validation_x, validation_y = preprocessor.get_validation()
+
+
 
     ## Limits are inclusive
     limits = { 
@@ -88,15 +118,44 @@ def optimise_params():
     }
 
     # Returns fitness for the specified chromosome
-    def fitness_func(chromosome: Chromosome) -> float:
+    def maximisation_fitness_func(chromosome: Chromosome) -> float:
         fitness = 0.0
         for key, value in chromosome.values.items():
             fitness += value
         return fitness
     
+    def fitness_func(chromosome: Chromosome) -> float:
+        create_tf_session()
+        set_session_seed(random_seed)
+
+        params = chromosome.values
+        model = Model(train_x, train_y, validation_x, validation_y,
+            preprocessor.get_seq_info_str(),
+            architecture=Architecture.LSTM.value,
+            is_bidirectional=True,
+            random_seed=random_seed,
+            batch_size=round(params["batch_size"]),
+            hidden_layers=round(params["hidden_layers"]),
+            neurons_per_layer=round(params["neurons_per_layer"]),
+            dropout=params["dropout"],
+            initial_learn_rate=params["initial_learn_rate"]
+        )
+        model.train()
+        val_mae = model.score["val_mae"]
+        fitness = 1 / val_mae
+
+        ## Cleanup
+        del model
+        K.clear_session()
+
+        return fitness
+
+
     ga = GeneticAlgorithm(limits, fitness_func,
         population_size=100, mutation_rate=0.01, generations=100)
     ga.start()
+
+    ## Save best model to a specific folder
 
     plt.plot(ga.best_fitnesses)
     plt.title("Best Fitnesses over Epochs")

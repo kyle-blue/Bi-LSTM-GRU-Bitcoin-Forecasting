@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 
-NUM_INDICATORS = 10 # Number of indicators to reduce to (find x number of indicators with lowest corrlations)
+NUM_INDICATORS = 15 # Number of indicators to reduce to (find x number of indicators with lowest corrlations)
 def indicator_correlations(symbol: str):
     max_df_len = 1000
     preprocessor = DataPreprocesser(
