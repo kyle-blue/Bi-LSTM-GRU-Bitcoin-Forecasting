@@ -1,4 +1,5 @@
 import os
+from typing import Type
 from app.DataPreprocesser import DataPreprocesser
 import ta
 import matplotlib.pyplot as plt
@@ -75,17 +76,28 @@ def add_all_indicators(df: pd.DataFrame, symbol: str):
     print("Added all indicators!")
     return df
 
+def get_highest_cor_indexes(arr: np.ndarray):
+    abs_arr = np.abs(arr)
+    indices = np.argsort(abs_arr.ravel()) # Indices of it sorted in ascending order
+    n = 0
+    row_index, col_index = 0, 0
+    while row_index == col_index:
+        n += 1
+        row_index, col_index = np.unravel_index(indices[-n], abs_arr.shape)
+ 
+    return row_index, col_index
+
 def reduce_correlation_matrix(correlations: pd.DataFrame, reduction_size: int, *, maximise: bool):
     while len(correlations.columns) > reduction_size:
         # Get index of max correlation
-        np_cor = correlations.to_numpy()
+        np_cor = np.abs(correlations.to_numpy())
         row_index, col_index = 0, 0
         if maximise: # We are maximising correlations: remove smallest
             row_index, col_index = np.unravel_index(np_cor.argmin(), np_cor.shape)
         else: # We are minimising correlations; remove biggest
-            row_index, col_index = np.unravel_index(np_cor.argmax(), np_cor.shape)
-        row_ind_sum = correlations.iloc[row_index].sum()
-        col_ind_sum = correlations.iloc[col_index].sum()
+            row_index, col_index = get_highest_cor_indexes(np_cor)
+        row_ind_sum = np.sum(np_cor[row_index])
+        col_ind_sum = np.sum(np_cor, axis=0)[col_index]
         
         remove_index = 0
         if maximise: # We are maximising correlations

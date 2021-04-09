@@ -72,7 +72,10 @@ def train_model():
         train_x, train_y, validation_x, validation_y,
         preprocessor.get_seq_info_str(),
         architecture=Architecture.LSTM.value,
-        is_bidirectional=True
+        is_bidirectional=True,
+        batch_size=2048,
+        hidden_layers=4,
+        neurons_per_layer=128,
     )
     
     preprocessor.print_dataset_totals()
