@@ -1,5 +1,5 @@
 import os
-from typing import Type
+from typing import List, Type
 from app.DataPreprocesser import DataPreprocesser
 import ta
 import matplotlib.pyplot as plt
@@ -27,7 +27,7 @@ def indicator_correlations(symbol: str):
     correlations = df.corr()
     plot_cor_heatmap(correlations, title="Correlation Heatmap", figsize=30, fontsize=15)
 
-    correlations = reduce_correlation_matrix(correlations, NUM_INDICATORS, maximise=False)
+    correlations = reduce_correlation_matrix(correlations, NUM_INDICATORS)
     print("Reduced to 10 indicators with low correlations!")
     
     plot_cor_heatmap(correlations, title="Correlation Heatmap", figsize=15, fontsize=20)
@@ -76,36 +76,32 @@ def add_all_indicators(df: pd.DataFrame, symbol: str):
     print("Added all indicators!")
     return df
 
-def get_highest_cor_indexes(arr: np.ndarray):
-    abs_arr = np.abs(arr)
-    indices = np.argsort(abs_arr.ravel()) # Indices of it sorted in ascending order
-    n = 0
-    row_index, col_index = 0, 0
-    while row_index == col_index:
-        n += 1
-        row_index, col_index = np.unravel_index(indices[-n], abs_arr.shape)
- 
-    return row_index, col_index
 
-def reduce_correlation_matrix(correlations: pd.DataFrame, reduction_size: int, *, maximise: bool):
-    while len(correlations.columns) > reduction_size:
-        # Get index of max correlation
-        np_cor = np.abs(correlations.to_numpy())
-        row_index, col_index = 0, 0
-        if maximise: # We are maximising correlations: remove smallest
-            row_index, col_index = np.unravel_index(np_cor.argmin(), np_cor.shape)
-        else: # We are minimising correlations; remove biggest
-            row_index, col_index = get_highest_cor_indexes(np_cor)
-        row_ind_sum = np.sum(np_cor[row_index])
-        col_ind_sum = np.sum(np_cor, axis=0)[col_index]
-        
-        remove_index = 0
-        if maximise: # We are maximising correlations
-            remove_index = row_index if row_ind_sum > col_ind_sum else col_index
-        else: # We are minimising correlations
-            remove_index = row_index if row_ind_sum < col_ind_sum else col_index
+def reduce_correlation_matrix(correlations: pd.DataFrame, reduction_size: int):
+    best_indicators: List[str] = []
+    
+    correlations = correlations.abs()
+    correlations_original = correlations.copy()
 
-        # Drop indicator with higher/lower overall correlation (between all indicators)
-        correlations.drop(correlations.index[remove_index], axis="index", inplace=True)
-        correlations.drop(correlations.columns[remove_index], axis="columns", inplace=True)
-    return correlations
+    cor = correlations.to_numpy()
+    row_sums = np.sum(cor, axis=1)
+    min_row = np.argmin(row_sums)
+    best_indicators.append(correlations.columns[min_row])
+
+    correlations.drop(correlations.index[min_row], axis="index", inplace=True)
+    correlations.drop(correlations.columns[min_row], axis="columns", inplace=True)
+
+    while len(best_indicators) < reduction_size:
+        row_sums = []
+        print(best_indicators)
+        for index, row in correlations.iterrows():
+            row_sums.append(correlations_original.loc[index, best_indicators].sum())
+        min_row = np.argmin(row_sums)
+        ind = correlations.columns[min_row]
+        if ind not in best_indicators:
+            best_indicators.append(ind)
+            correlations.drop(correlations.index[min_row], axis="index", inplace=True)
+            correlations.drop(correlations.columns[min_row], axis="columns", inplace=True)
+                
+    ret = correlations_original.loc[best_indicators, best_indicators]
+    return ret
