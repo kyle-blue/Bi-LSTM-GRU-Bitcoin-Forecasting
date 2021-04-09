@@ -1,10 +1,13 @@
 import tensorflow as tf
 import os
+from app.Chromosome import Chromosome, Limit
 from app.DataPreprocesser import DataPreprocesser
+from app.GeneticAlgorithm import GeneticAlgorithm
 from app.Model import Model
 from app.parameters import Architecture, Symbol
 from app.test_model import test_model
 from .indicator_correlations import indicator_correlations
+import matplotlib.pyplot as plt
 
 SYMBOL_TO_PREDICT = Symbol.BTC_USDT.value
 
@@ -25,6 +28,7 @@ def start():
     print("1. Train a new model")
     print("2. Test an existing model")
     print("3. Test indicator correlations")
+    print("4. Optimise RNN params using Genetic Algorithm")
     is_valid = False
     while not is_valid:
         inp = int(input())
@@ -36,6 +40,9 @@ def start():
             is_valid = True
         if inp == 3:
             indicator_correlations(SYMBOL_TO_PREDICT)
+            is_valid = True
+        if inp == 4:
+            optimise_params()
             is_valid = True
         if not is_valid:
             print("Please choose a valid option...")
@@ -68,6 +75,34 @@ def train_model():
     model.train()
     model.save_model()
 
+
+def optimise_params():
+
+    ## Limits are inclusive
+    limits = { 
+        "batch_size": Limit(100, 2048),
+        "hidden_layers": Limit(1, 4),
+        "neurons_per_layer": Limit(16, 128),
+        "dropout": Limit(0.0, 0.5),
+        "initial_learn_rate": Limit(0.000001, 1.0)
+    }
+
+    # Returns fitness for the specified chromosome
+    def fitness_func(chromosome: Chromosome) -> float:
+        fitness = 0.0
+        for key, value in chromosome.values.items():
+            fitness += value
+        return fitness
+    
+    ga = GeneticAlgorithm(limits, fitness_func,
+        population_size=100, mutation_rate=0.01, generations=100)
+    ga.start()
+
+    plt.plot(ga.best_fitnesses)
+    plt.title("Best Fitnesses over Epochs")
+    plt.ylabel("Fitness")
+    plt.xlabel("Epoch")
+    plt.show()
 
 
 

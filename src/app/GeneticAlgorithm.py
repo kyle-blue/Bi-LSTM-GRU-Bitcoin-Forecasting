@@ -1,6 +1,5 @@
 
-from types import FunctionType
-from typing import Dict, List, Tuple
+from typing import Callable, Dict, List, Tuple
 from .Chromosome import Chromosome, Limit
 import random
 import numpy as np
@@ -13,7 +12,7 @@ import numpy as np
 
 
 class GeneticAlgorithm:
-    def __init__(self, fitness_func: FunctionType, limits: Dict[str, Limit], *,
+    def __init__(self, limits: Dict[str, Limit], fitness_func: Callable[[Chromosome], float], *,
         population_size=10, mutation_rate=0.05, crossover_rate=0.9, generations=20):
         self.population_size = population_size
         self.mutation_rate = mutation_rate
@@ -59,11 +58,13 @@ class GeneticAlgorithm:
 
         max_index = np.argmax(self.population)
         print(f"Fittest chromosome was #{max_index} with a fitness of: {self.population[max_index].fitness}")
+        print(f"Chromosome values:")
+        print(self.population[max_index].values)
 
     def log_fitnesses(self):
-        self.best_fitnesses.append(np.max(self.population))
-        self.worst_fitnesses.append(np.min(self.population))
-        self.avg_fitnesses.append(np.average(self.population))
+        self.best_fitnesses.append(max(self.population).fitness)
+        self.worst_fitnesses.append(min(self.population).fitness)
+        self.avg_fitnesses.append(np.average([x.fitness for x in self.population]))
 
     def get_fittest(self) -> Chromosome:
         max_index = np.argmax(self.population)
