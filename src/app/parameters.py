@@ -10,10 +10,10 @@ class Symbol (Enum):
     BCH_BTC = "BCH-BTC"
     ETH_BTC = "ETH-BTC"
     LTC_BTC = "LTC-BTC"
-    DASH_BTC = "DASH-BTC"
-    DOGE_BTC = "DOGE-BTC"
-    XRP_BTC = "XRP-BTC" # Ripple
-    XMR_BTC = "XMR-BTC" # Monero
+    XRP_BTC = "XRP-BTC"
+    DOT_BTC = "DOT-BTC"
+    ADA_BTC = "ADA-BTC"
+    BNB_BTC = "BNB-BTC"
 
 
 ## CuDNNN / GPU versions are applied automatically

@@ -6,6 +6,8 @@ from collections import deque
 import os
 import random
 
+import ta
+
 
 _file_names = ["train_x.npy", "train_y.npy", "validation_x.npy", "validation_y.npy", "test_x.npy", "test_y.npy"]
 
@@ -105,23 +107,13 @@ class DataPreprocesser():
     def get_df_no_std(self):
         return self.df_no_std
 
-    def add_data(self, data: pd.DataFrame, *, apply_pct_chg = True):
+    def change_data(self, data: pd.DataFrame):
         """
-        Adds additional data to the main dataframe and (potentially) applies percent change then (definitely) standardises.
-        Be sure to only add new columns
+        Changes the original df data then applies pct change then preprocesses it (pct_change and standardise)
         """
-        self.df_original.join(data, how="outer")
-        self.df_original.dropna(inplace=True)
-
-        if apply_pct_chg:
-            data = self._pct_chg(data)
-            self.df_no_std.join(data, how="outer")
-            self.df_no_std.dropna(inplace=True)
+        self.df = data
+        self._preprocess_df()
         
-
-        data = self._standardise(data)
-        self.df.join(data, how="outer")
-        self.df.dropna(inplace=True)
 
 
 
@@ -129,6 +121,8 @@ class DataPreprocesser():
     def print_df(self):
         print(f"\n\nMAIN DF FOR PREDICTING: {self.forecast_col_name}")
         print(self.df.head(15))
+        print("Columns:")
+        print(self.df.columns)
 
     def save_datasets(self):
         np.save(f"{self.state_folder}/{_file_names[0]}", self.train_x)
@@ -182,11 +176,17 @@ class DataPreprocesser():
         self._preprocess_df()    
 
 
+    def _relative_change(self, df: pd.DataFrame, col: str):
+        avg_period = 10
+        avgs = ta.trend.SMAIndicator(df[col], avg_period).sma_indicator()
+        df[col] = avgs.sub(df[col]).div(avgs)
+        return df
+
+
     def _pct_chg(self, df: pd.DataFrame):
         for col in df.columns:
-            if str(col).endswith("_volume"):
-                df[col] = df[col] + 1 # Avoid zero errors
-            df[col] = df[col].pct_change()
+            # print(f"{col}: {np.sum(df[col].to_numpy() == 0)}")
+            df = self._relative_change(df, col)
             df[col].replace([np.inf, -np.inf], NaN, inplace=True)
             df.dropna(inplace=True)
         return df
@@ -205,7 +205,6 @@ class DataPreprocesser():
         """
         Add target and standardise data in df
         """
-        
         self.df_original = self.df.copy()
 
         ## Turn into pct change

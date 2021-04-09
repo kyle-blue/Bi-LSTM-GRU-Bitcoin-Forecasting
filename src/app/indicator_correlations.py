@@ -9,7 +9,7 @@ import pandas as pd
 
 NUM_INDICATORS = 15 # Number of indicators to reduce to (find x number of indicators with lowest corrlations)
 def indicator_correlations(symbol: str):
-    max_df_len = 1000
+    max_df_len = 10000
     preprocessor = DataPreprocesser(
         f"{os.environ['WORKSPACE']}/data/crypto",
         col_names=["open", "high", "low", "close", "volume"],
@@ -28,7 +28,7 @@ def indicator_correlations(symbol: str):
     plot_cor_heatmap(correlations, title="Correlation Heatmap", figsize=30, fontsize=15)
 
     correlations = reduce_correlation_matrix(correlations, NUM_INDICATORS)
-    print("Reduced to 10 indicators with low correlations!")
+    print(f"Reduced to {NUM_INDICATORS} indicators with low correlations!")
     
     plot_cor_heatmap(correlations, title="Correlation Heatmap", figsize=15, fontsize=20)
 
@@ -54,7 +54,7 @@ def plot_cor_heatmap(correlations: pd.DataFrame, *, title:str, figsize: int, fon
 def remove_non_indicators(df: pd.DataFrame):
     ## Remove non-indicators
     for col in df.columns:
-        is_indicator = "_ind_" in col
+        is_indicator = "ind_" in col
         if not is_indicator:
             del df[col]
 
@@ -62,16 +62,18 @@ def remove_non_indicators(df: pd.DataFrame):
     print(df)
     return df
 
-def add_all_indicators(df: pd.DataFrame, symbol: str):
+def add_all_indicators(df: pd.DataFrame, cur_symbol: str):
+    df = ta.add_all_ta_features(
+        df, f"{cur_symbol}_open", f"{cur_symbol}_high", 
+        f"{cur_symbol}_low", f"{cur_symbol}_close",
+        f"{cur_symbol}_volume", fillna=True, colprefix=f"ind_"
+    )
+    df.dropna(inplace=True)
+    
+    ## Remove problematic indicators
     for col in df.columns:
-        cur_symbol = col.split("_")[0]
-        if cur_symbol == symbol:
-            df = ta.add_all_ta_features(
-                df, f"{cur_symbol}_open", f"{cur_symbol}_high", 
-                f"{cur_symbol}_low", f"{cur_symbol}_close",
-                f"{cur_symbol}_volume", fillna=True, colprefix=f"{cur_symbol}_ind_"
-            )
-            df.dropna(inplace=True)
+        if "indicator" in col or "bbli" in col or "bbhi" in col:
+            df.drop(col, axis="columns", inplace=True)
 
     print("Added all indicators!")
     return df
@@ -93,7 +95,6 @@ def reduce_correlation_matrix(correlations: pd.DataFrame, reduction_size: int):
 
     while len(best_indicators) < reduction_size:
         row_sums = []
-        print(best_indicators)
         for index, row in correlations.iterrows():
             row_sums.append(correlations_original.loc[index, best_indicators].sum())
         min_row = np.argmin(row_sums)

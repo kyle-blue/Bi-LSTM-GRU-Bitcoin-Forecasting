@@ -14,8 +14,71 @@ import matplotlib.pyplot as plt
 import numpy as np
 import random
 import tensorflow.keras.backend as K
+import pandas as pd
+import ta
 
 SYMBOL_TO_PREDICT = Symbol.BTC_USDT.value
+
+
+
+def get_select_indicator_values(df: pd.DataFrame) -> pd.DataFrame:
+    opens = df[f"{SYMBOL_TO_PREDICT}_open"]
+    highs = df[f"{SYMBOL_TO_PREDICT}_high"]
+    lows = df[f"{SYMBOL_TO_PREDICT}_low"]
+    closes = df[f"{SYMBOL_TO_PREDICT}_close"]
+    volumes = df[f"{SYMBOL_TO_PREDICT}_volume"]
+        
+
+    adx = ta.trend.ADXIndicator(highs, lows, closes)
+    df[f"{SYMBOL_TO_PREDICT}_adx"] = adx.adx()
+
+    df[f"{SYMBOL_TO_PREDICT}_roc"] = ta.momentum.roc(closes)
+
+    bb = ta.volatility.BollingerBands(closes)
+    df[f"{SYMBOL_TO_PREDICT}_bbh"] = bb.bollinger_hband()
+    
+    obv = ta.volume.OnBalanceVolumeIndicator(closes, volumes)
+    df[f"{SYMBOL_TO_PREDICT}_obv"] = obv.on_balance_volume()
+
+
+    kst = ta.trend.KSTIndicator(closes)
+    df[f"{SYMBOL_TO_PREDICT}_sig"] = kst.kst_sig()
+
+    mi = ta.trend.MassIndex(highs, lows)
+    df[f"{SYMBOL_TO_PREDICT}_mass_index"] = mi.mass_index()
+
+    stc = ta.trend.STCIndicator(closes)
+    df[f"{SYMBOL_TO_PREDICT}_stc"] = stc.stc()
+
+
+    em = ta.volume.EaseOfMovementIndicator(highs, lows, volumes)
+    df[f"{SYMBOL_TO_PREDICT}_em"] = em.ease_of_movement()
+
+    cmf = ta.volume.ChaikinMoneyFlowIndicator(highs, lows, closes, volumes)
+    df[f"{SYMBOL_TO_PREDICT}_cmf"] = cmf.chaikin_money_flow()
+
+
+    ppo = ta.momentum.PercentagePriceOscillator(closes)
+    df[f"{SYMBOL_TO_PREDICT}_ppo_hist"] = ppo.ppo_hist()
+    df[f"{SYMBOL_TO_PREDICT}_ppo_signal"] = ppo.ppo_signal()
+
+    dlr = ta.others.DailyLogReturnIndicator(closes)
+    df[f"{SYMBOL_TO_PREDICT}_dlr"] = dlr.daily_log_return()
+
+    dpo = ta.trend.DPOIndicator(closes)
+    df[f"{SYMBOL_TO_PREDICT}_dpo"] = dpo.dpo()
+
+    nvi = ta.volume.NegativeVolumeIndexIndicator(closes, volumes)
+    df[f"{SYMBOL_TO_PREDICT}_nvi"] = nvi.negative_volume_index()
+    
+    vpt = ta.volume.VolumePriceTrendIndicator(closes, volumes)
+    df[f"{SYMBOL_TO_PREDICT}_vpt"] = vpt.volume_price_trend()
+
+    df.dropna(inplace=True)
+
+    return df
+
+
 
 def create_tf_session():
     ## Only allocate required GPU space
@@ -63,6 +126,11 @@ def train_model():
         forecast_file=f"{SYMBOL_TO_PREDICT}.parquet",
         sequence_length=250
     )
+    if not preprocessor.has_loaded:
+        indicator_df = get_select_indicator_values(preprocessor.df_original)
+        preprocessor.change_data(indicator_df)
+    preprocessor.print_df()
+
     preprocessor.preprocess()
 
     train_x, train_y = preprocessor.get_train()
@@ -73,7 +141,7 @@ def train_model():
         preprocessor.get_seq_info_str(),
         architecture=Architecture.LSTM.value,
         is_bidirectional=True,
-        batch_size=2048,
+        batch_size=700,
         hidden_layers=4,
         neurons_per_layer=128,
     )
@@ -104,6 +172,11 @@ def optimise_params():
         forecast_file=f"{SYMBOL_TO_PREDICT}.parquet",
         sequence_length=250
     )
+    if not preprocessor.has_loaded:
+        indicator_df = get_select_indicator_values(preprocessor.df_original)
+        preprocessor.change_data(indicator_df)
+    preprocessor.print_df()
+
     preprocessor.preprocess()
 
     train_x, train_y = preprocessor.get_train()
@@ -113,7 +186,7 @@ def optimise_params():
 
     ## Limits are inclusive
     limits = { 
-        "batch_size": Limit(100, 2048),
+        "batch_size": Limit(100, 700),
         "hidden_layers": Limit(1, 4),
         "neurons_per_layer": Limit(16, 128),
         "dropout": Limit(0.0, 0.5),
@@ -127,6 +200,12 @@ def optimise_params():
             fitness += value
         return fitness
     
+
+    
+
+
+
+
     def fitness_func(chromosome: Chromosome) -> float:
         create_tf_session()
         set_session_seed(random_seed)
@@ -165,6 +244,7 @@ def optimise_params():
     plt.ylabel("Fitness")
     plt.xlabel("Epoch")
     plt.show()
+
 
 
 

@@ -115,7 +115,6 @@ class Model():
             loss="mae",
             optimizer=adam,
             metrics=["mae", RSquaredMetric]
-
         )
 
 
