@@ -141,9 +141,11 @@ def train_model():
         preprocessor.get_seq_info_str(),
         architecture=Architecture.LSTM.value,
         is_bidirectional=True,
-        batch_size=700, # Max this machine allows (GPU mem)
-        hidden_layers=4,
-        neurons_per_layer=128
+        batch_size=2048,
+        hidden_layers=1,
+        neurons_per_layer=90,
+        dropout=0.2475,
+        initial_learn_rate=0.038
     )
     
     preprocessor.print_dataset_totals()
@@ -230,7 +232,7 @@ def optimise_params():
 
 
     ga = GeneticAlgorithm(limits, fitness_func,
-        population_size=100, mutation_rate=0.01, generations=100)
+        population_size=10, mutation_rate=0.01, generations=20)
     ga.start()
 
     ## Save best model to a specific folder
