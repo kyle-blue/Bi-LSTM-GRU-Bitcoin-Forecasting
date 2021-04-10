@@ -129,7 +129,7 @@ def train_model():
     if not preprocessor.has_loaded:
         indicator_df = get_select_indicator_values(preprocessor.df_original)
         preprocessor.change_data(indicator_df)
-    preprocessor.print_df()
+        preprocessor.print_df()
 
     preprocessor.preprocess()
 
@@ -141,9 +141,9 @@ def train_model():
         preprocessor.get_seq_info_str(),
         architecture=Architecture.LSTM.value,
         is_bidirectional=True,
-        batch_size=700,
+        batch_size=700, # Max this machine allows (GPU mem)
         hidden_layers=4,
-        neurons_per_layer=128,
+        neurons_per_layer=128
     )
     
     preprocessor.print_dataset_totals()
@@ -154,16 +154,10 @@ def train_model():
 
 
 def set_session_seed(seed: int):
-    os.environ["PYTHONHASHSEED"] = str(seed)
-    random.seed(seed)
-    np.random.seed(seed)
     tf.compat.v1.set_random_seed(seed)
 
 
 def optimise_params():
-    random_seed = 12321
-    set_session_seed(random_seed)
-
 
     preprocessor = DataPreprocesser(
         f"{os.environ['WORKSPACE']}/data/crypto",
@@ -175,7 +169,7 @@ def optimise_params():
     if not preprocessor.has_loaded:
         indicator_df = get_select_indicator_values(preprocessor.df_original)
         preprocessor.change_data(indicator_df)
-    preprocessor.print_df()
+        preprocessor.print_df()
 
     preprocessor.preprocess()
 
@@ -190,7 +184,7 @@ def optimise_params():
         "hidden_layers": Limit(1, 4),
         "neurons_per_layer": Limit(16, 128),
         "dropout": Limit(0.0, 0.5),
-        "initial_learn_rate": Limit(0.000001, 1.0)
+        "initial_learn_rate": Limit(0.000001, 0.1)
     }
 
     # Returns fitness for the specified chromosome
@@ -201,30 +195,26 @@ def optimise_params():
         return fitness
     
 
-    
-
-
-
 
     def fitness_func(chromosome: Chromosome) -> float:
         create_tf_session()
-        set_session_seed(random_seed)
 
         params = chromosome.values
+        print("Current Chromosome Params:")
+        print(params)
         model = Model(train_x, train_y, validation_x, validation_y,
             preprocessor.get_seq_info_str(),
             architecture=Architecture.LSTM.value,
             is_bidirectional=True,
-            random_seed=random_seed,
             batch_size=round(params["batch_size"]),
             hidden_layers=round(params["hidden_layers"]),
             neurons_per_layer=round(params["neurons_per_layer"]),
             dropout=params["dropout"],
-            initial_learn_rate=params["initial_learn_rate"]
+            initial_learn_rate=params["initial_learn_rate"],
         )
         model.train()
-        val_mae = model.score["val_mae"]
-        fitness = 1 / val_mae
+        r_square = model.score["RSquaredMetric"]
+        fitness = r_square
 
         ## Cleanup
         del model

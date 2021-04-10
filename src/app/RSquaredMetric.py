@@ -5,3 +5,6 @@ def RSquaredMetric(y_true, y_pred):
     unexplained_error = tf.reduce_sum(tf.square(tf.subtract(y_true, y_pred)))
     R_squared = tf.subtract(1.0, tf.divide(unexplained_error, total_error))
     return R_squared
+
+def RSquaredMetricNeg(y_true, y_pred):
+    return -RSquaredMetric(y_true, y_pred)

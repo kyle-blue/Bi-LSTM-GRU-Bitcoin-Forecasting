@@ -8,7 +8,7 @@ import numpy as np
 import os
 
 from app.parameters import Architecture
-from .RSquaredMetric import RSquaredMetric
+from .RSquaredMetric import RSquaredMetric, RSquaredMetricNeg
 
 
 class Model():
@@ -55,7 +55,7 @@ class Model():
         return self.model
 
     def train(self):
-        early_stop = EarlyStopping(monitor='loss', patience=self.early_stop_patience)
+        early_stop = EarlyStopping(monitor='loss', patience=self.early_stop_patience, mode="max", restore_best_weights=True)
         tensorboard = TensorBoard(log_dir=f"logs/{self.seq_info}__{self.get_model_info_str()}__{datetime.now().timestamp()}")
 
         # Train model
@@ -68,7 +68,8 @@ class Model():
         )
 
         # Score model
-        self.score = self.model.evaluate(self.validation_x, self.validation_y, verbose=0, return_dict=True)
+        self.score = self.model.evaluate(self.validation_x, self.validation_y, verbose=0)
+        self.score = {out: self.score[i] for i, out in enumerate(self.model.metrics_names)}
         print('Scores:', self.score)
 
     def save_model(self):
@@ -110,9 +111,12 @@ class Model():
         self.model.add(Dense(1))
 
         adam = tf.keras.optimizers.Adam(learning_rate=self.initial_learn_rate)
+
+
+        
         # Compile model
         self.model.compile(
-            loss="mae",
+            loss=RSquaredMetricNeg, # Negative to make it maximise RSquared
             optimizer=adam,
             metrics=["mae", RSquaredMetric]
         )
