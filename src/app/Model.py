@@ -55,7 +55,7 @@ class Model():
         return self.model
 
     def train(self):
-        early_stop = EarlyStopping(monitor='loss', patience=self.early_stop_patience, mode="max", restore_best_weights=True)
+        early_stop = EarlyStopping(monitor='loss', patience=self.early_stop_patience, restore_best_weights=True)
         tensorboard = TensorBoard(log_dir=f"logs/{self.seq_info}__{self.get_model_info_str()}__{datetime.now().timestamp()}")
 
         # Train model
@@ -96,7 +96,7 @@ class Model():
         else:
             self.model.add(self.architecture(self.neurons_per_layer, input_shape=(self.train_x.shape[1:]), return_sequences=True))
         self.model.add(Dropout(self.dropout, seed=self.random_seed))
-        self.model.add(BatchNormalization())
+        self.model.add(BatchNormalization(virtual_batch_size=10000))
 
         
         for i in range(self.hidden_layers):
@@ -106,7 +106,7 @@ class Model():
             else:
                 self.model.add(self.architecture(self.neurons_per_layer, return_sequences=return_sequences))
             self.model.add(Dropout(self.dropout, seed=self.random_seed))
-            self.model.add(BatchNormalization())
+            self.model.add(BatchNormalization(virtual_batch_size=10000))
 
         self.model.add(Dense(1))
 

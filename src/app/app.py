@@ -179,8 +179,7 @@ def optimise_params():
 
 
     ## Limits are inclusive
-    limits = { 
-        "batch_size": Limit(100, 700),
+    limits = {
         "hidden_layers": Limit(1, 4),
         "neurons_per_layer": Limit(16, 128),
         "dropout": Limit(0.0, 0.5),
@@ -198,16 +197,22 @@ def optimise_params():
 
     def fitness_func(chromosome: Chromosome) -> float:
         create_tf_session()
-
         params = chromosome.values
+
+        hidden_layers = round(params["hidden_layers"])
+        batch_size = 0.0
+        if hidden_layers == 4: batch_size = 700
+        if hidden_layers == 3: batch_size = 1300
+        if hidden_layers == 2: batch_size = 2048
+
         print("Current Chromosome Params:")
         print(params)
         model = Model(train_x, train_y, validation_x, validation_y,
             preprocessor.get_seq_info_str(),
             architecture=Architecture.LSTM.value,
             is_bidirectional=True,
-            batch_size=round(params["batch_size"]),
-            hidden_layers=round(params["hidden_layers"]),
+            batch_size=batch_size,
+            hidden_layers=hidden_layers,
             neurons_per_layer=round(params["neurons_per_layer"]),
             dropout=params["dropout"],
             initial_learn_rate=params["initial_learn_rate"],
