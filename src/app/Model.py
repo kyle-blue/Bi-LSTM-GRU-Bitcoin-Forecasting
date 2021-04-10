@@ -134,7 +134,7 @@ class Model():
 
     
     def _save_model_weights(self):
-        file_path = f"models/final/{self.seq_info}__{self.get_model_info_str()}__{self.max_epochs}-{self.score[2]:.3f}.h5"
+        file_path = f"models/final/{self.seq_info}__{self.get_model_info_str()}__{self.max_epochs}-{self.score['RSquaredMetric']:.3f}.h5"
         self.model.save_weights(file_path)
         print(f"Saved model weights to: {file_path}")
 
