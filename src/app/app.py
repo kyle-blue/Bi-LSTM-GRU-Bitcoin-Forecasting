@@ -202,9 +202,9 @@ def optimise_params():
         hidden_layers = round(params["hidden_layers"])
         batch_size = 700
         if hidden_layers == 4: batch_size = 700
-        if hidden_layers == 3: batch_size = 1300
-        if hidden_layers == 2: batch_size = 2048
-        if hidden_layers == 1: batch_size = 3068
+        if hidden_layers == 3: batch_size = 1024
+        if hidden_layers == 2: batch_size = 1400
+        if hidden_layers == 1: batch_size = 1800
 
         print("Current Chromosome Params:")
         print(params)
