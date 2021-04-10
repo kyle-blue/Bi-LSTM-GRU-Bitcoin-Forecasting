@@ -96,7 +96,7 @@ class Model():
         else:
             self.model.add(self.architecture(self.neurons_per_layer, input_shape=(self.train_x.shape[1:]), return_sequences=True))
         self.model.add(Dropout(self.dropout, seed=self.random_seed))
-        self.model.add(BatchNormalization(virtual_batch_size=virtual_batch_size))
+        self.model.add(BatchNormalization())
 
         
         for i in range(self.hidden_layers):
@@ -106,8 +106,11 @@ class Model():
             else:
                 self.model.add(self.architecture(self.neurons_per_layer, return_sequences=return_sequences))
             self.model.add(Dropout(self.dropout, seed=self.random_seed))
-            self.model.add(BatchNormalization(virtual_batch_size=virtual_batch_size))
+            if i < self.hidden_layers:
+                self.model.add(BatchNormalization())
+            
 
+        self.model.add(BatchNormalization(virtual_batch_size=virtual_batch_size))
         self.model.add(Dense(1))
 
         adam = tf.keras.optimizers.Adam(learning_rate=self.initial_learn_rate)
