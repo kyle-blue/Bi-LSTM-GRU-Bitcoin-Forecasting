@@ -85,7 +85,7 @@ class Model():
         """
         Creates and compiles the model
         """
-
+        virtual_batch_size = int(10000 / self.batch_size) * self.batch_size
         self._use_gpu_if_available()
 
         ##### Create the model ####
@@ -96,7 +96,7 @@ class Model():
         else:
             self.model.add(self.architecture(self.neurons_per_layer, input_shape=(self.train_x.shape[1:]), return_sequences=True))
         self.model.add(Dropout(self.dropout, seed=self.random_seed))
-        self.model.add(BatchNormalization(virtual_batch_size=10000))
+        self.model.add(BatchNormalization(virtual_batch_size=virtual_batch_size))
 
         
         for i in range(self.hidden_layers):
@@ -106,7 +106,7 @@ class Model():
             else:
                 self.model.add(self.architecture(self.neurons_per_layer, return_sequences=return_sequences))
             self.model.add(Dropout(self.dropout, seed=self.random_seed))
-            self.model.add(BatchNormalization(virtual_batch_size=10000))
+            self.model.add(BatchNormalization(virtual_batch_size=virtual_batch_size))
 
         self.model.add(Dense(1))
 

@@ -200,7 +200,7 @@ def optimise_params():
         params = chromosome.values
 
         hidden_layers = round(params["hidden_layers"])
-        batch_size = 0.0
+        batch_size = 700
         if hidden_layers == 4: batch_size = 700
         if hidden_layers == 3: batch_size = 1300
         if hidden_layers == 2: batch_size = 2048
