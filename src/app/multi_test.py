@@ -69,9 +69,10 @@ def multi_test(SYMBOL_TO_PREDICT: str):
                 sequence_length=new_params["sequence_length"],
                 should_ask_load=False
             )
-            indicator_df = get_select_indicator_values(preprocessor.df_original)
-            preprocessor.change_data(indicator_df)
-            preprocessor.print_df()
+            if new_params["indicators"]:
+                indicator_df = get_select_indicator_values(pre.df_original)
+                pre.change_data(indicator_df)
+                pre.print_df()
 
         for i in range(num_repeats):
             create_tf_session()
@@ -101,26 +102,11 @@ def multi_test(SYMBOL_TO_PREDICT: str):
 
             if not os.path.exists(file_path):
                 with open(file_path, 'a') as file:
-                    file.write("R Square,MAE,Train Time")
+                    file.write("R Square,MAE,Train Time\n")
 
             with open(file_path, 'a') as file:
-                file.write(f"{r_square},{mae},{train_time}")
+                file.write(f"{r_square},{mae},{train_time}\n")
 
             ## Cleanup
             del model
             K.clear_session()
-
-    
-    
-    
-
-
-
-    
-
-    
-    
-    preprocessor.print_dataset_totals()
-    del preprocessor # Save memory
-
-    model.train()

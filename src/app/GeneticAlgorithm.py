@@ -74,10 +74,10 @@ class GeneticAlgorithm:
 
         if not os.path.exists(self.log_file):
             with open(self.log_file, 'a') as file:
-                file.write("Generation,Fitness (R Square),MAE,Hidden Layers,Neurons Per Layer,Dropout,Initial Learn Rate")
+                file.write("Generation,Fitness (R Square),MAE,Hidden Layers,Neurons Per Layer,Dropout,Initial Learn Rate\n")
 
         with open(self.log_file, 'a') as file:
-            file.write(f"{generation},{best.fitness},{best.other['mae']},{best.values['hidden_layers']},{best.values['neurons_per_layer']},{best.values['dropout']},{best.values['inital_learn_rate']}")
+            file.write(f"{generation},{best.fitness},{best.other['mae']},{best.values['hidden_layers']},{best.values['neurons_per_layer']},{best.values['dropout']},{best.values['inital_learn_rate']}\n")
 
 
     def get_fittest(self) -> Chromosome:

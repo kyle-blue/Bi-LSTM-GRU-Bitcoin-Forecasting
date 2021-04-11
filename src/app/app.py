@@ -20,6 +20,7 @@ def start():
     print("2. Test an existing model")
     print("3. Test indicator correlations")
     print("4. Optimise RNN params using Genetic Algorithm")
+    print("5. Multi Test")
     is_valid = False
     while not is_valid:
         inp = int(input())
@@ -35,7 +36,7 @@ def start():
         if inp == 4:
             optimise_params(SYMBOL_TO_PREDICT, SHOULD_USE_INDICATORS)
             is_valid = True
-        if inp == 4:
+        if inp == 5:
             multi_test(SYMBOL_TO_PREDICT)
             is_valid = True
         if not is_valid:
