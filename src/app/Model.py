@@ -55,7 +55,7 @@ class Model():
         return self.model
 
     def train(self):
-        early_stop = EarlyStopping(monitor='loss', patience=self.early_stop_patience, restore_best_weights=True)
+        early_stop = EarlyStopping(monitor='val_loss', patience=self.early_stop_patience, restore_best_weights=True)
         tensorboard = TensorBoard(log_dir=f"logs/{self.seq_info}__{self.get_model_info_str()}__{datetime.now().timestamp()}")
 
         # Train model

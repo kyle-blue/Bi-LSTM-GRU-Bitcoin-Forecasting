@@ -11,17 +11,16 @@ NUM_INDICATORS = 15 # Number of indicators to reduce to (find x number of indica
 def indicator_correlations(symbol: str):
     max_df_len = 10000
     preprocessor = DataPreprocesser(
-        f"{os.environ['WORKSPACE']}/data/crypto",
+        f"{os.environ['WORKSPACE']}/data/crypto/{symbol}.parquet",
         col_names=["open", "high", "low", "close", "volume"],
         forecast_col_name="close",
-        forecast_file=f"{symbol}.parquet",
         max_dataset_size=max_df_len,
         should_ask_load=False # Don't load previously generated sequences (and don't ask)
     )
     # We don't need to preprocessor.preprocess() since we don't want the sequences
 
     df = preprocessor.get_df_original()
-    df = add_all_indicators(df, symbol)
+    df = add_all_indicators(df)
     df = remove_non_indicators(df)
 
     correlations = df.corr()
@@ -62,11 +61,11 @@ def remove_non_indicators(df: pd.DataFrame):
     print(df)
     return df
 
-def add_all_indicators(df: pd.DataFrame, cur_symbol: str):
+def add_all_indicators(df: pd.DataFrame):
     df = ta.add_all_ta_features(
-        df, f"{cur_symbol}_open", f"{cur_symbol}_high", 
-        f"{cur_symbol}_low", f"{cur_symbol}_close",
-        f"{cur_symbol}_volume", fillna=True, colprefix=f"ind_"
+        df, "open", "high", 
+        "low", "close",
+        "volume", fillna=True, colprefix=f"ind_"
     )
     df.dropna(inplace=True)
     

@@ -15,9 +15,9 @@ def standardise(arr: np.array):
     return (arr - np.mean(arr)) / np.std(arr)
 
 class DataPreprocesser():
-    def __init__(self, dataset_folder: str, col_names: List[str], forecast_col_name:str, *,
+    def __init__(self, dataset_file: str, col_names: List[str], forecast_col_name:str, *,
         max_dataset_size = 100000, forecast_period = 1, sequence_length = 100,
-        test_split = 0.2, val_split = 0.2, forecast_file: str = ".",
+        test_split = 0.2, val_split = 0.2,
         should_ask_load = True):
         """
         INFO GOES HERE
@@ -26,11 +26,11 @@ class DataPreprocesser():
         self.forecast_period = forecast_period
         self.max_dataset_size = max_dataset_size
         self.sequence_length = sequence_length
-        self.forecast_file = forecast_file.split(".")[0]
+        self.dataset_folder, self.dataset_file = os.path.split(dataset_file)
+        self.dataset_name = self.dataset_file.split(".")[0]
         self.forecast_col_name = forecast_col_name
         self.test_split = test_split
         self.val_split = val_split
-        self.dataset_folder = dataset_folder
         self.col_names = col_names
         self.state_folder = f"{os.environ['WORKSPACE']}/state/{self.get_seq_info_str()}"
 
@@ -82,9 +82,9 @@ class DataPreprocesser():
         print(f"Test total: {len(self.test_y)}")
 
     def get_seq_info_str(self):
-        if self.forecast_file is None:
-            self.forecast_file = os.listdir(self.dataset_folder)[0]
-        return f"{str(self.forecast_file)}-SeqLen{self.sequence_length}-Forward{self.forecast_period}"
+        if self.dataset_name is None:
+            self.dataset_name = os.listdir(self.dataset_folder)[0]
+        return f"{str(self.dataset_name)}-SeqLen{self.sequence_length}-Forward{self.forecast_period}"
 
     def get_datasets(self):
         return self.train_x, self.train_y, self.validation_x, self.validation_y, self.test_x, self.test_y
@@ -225,11 +225,7 @@ class DataPreprocesser():
         future = []
 
         symbol_data = pd.DataFrame()
-        is_multiple_dataset_files = len(set(os.listdir(self.dataset_folder))) > 1
-        if is_multiple_dataset_files: 
-            symbol_data = self.df[f"{self.forecast_file}_{self.forecast_col_name}"]
-        else:
-            symbol_data = self.df[self.forecast_col_name]
+        symbol_data = self.df[self.forecast_col_name]
         symbol_data_len = len(symbol_data)
 
         for i in range(symbol_data_len):
@@ -253,38 +249,16 @@ class DataPreprocesser():
         return df
 
 
-    def _get_main_dataframe(self):
-        is_multiple_dataset_files = len(set(os.listdir(self.dataset_folder))) > 1
-        if not is_multiple_dataset_files:
-            self.forecast_file = f"{self.dataset_folder}/{os.listdir(self.dataset_folder)[0]}"
-            df = self._load_df(self.forecast_file)
-            df = df[-self.max_dataset_size:] # Reduce dataset size to max size
-            df.dropna(inplace=True)
-            return df
+    def _get_main_dataframe(self):  
+        path = f"{self.dataset_folder}/{self.dataset_file}"
+        df = pd.DataFrame()
+        df = self._load_df(path)
+        df = df[-self.max_dataset_size:] # Reduce dataset size to max size
+        df = df[self.col_names]
+       
 
-        ## Else there are multiple dataset files        
-        main_df = pd.DataFrame()
-        files = set(os.listdir(self.dataset_folder)) # Remove file extension from strings
-        for file in files:
-            file_name =  file.split(".")[0] # Remove file extension from file
-            path = f"{self.dataset_folder}/{file}"
-            df = pd.DataFrame()
-            df = self._load_df(path)
-            df = df[-self.max_dataset_size:] # Reduce dataset size to max size
-            df = df[self.col_names]
-
-            rename_dict = {}
-            for col_name in self.col_names:
-                rename_dict[col_name] = f"{file_name}_{col_name}"
-            df.rename(columns=rename_dict, inplace=True)
-
-            
-
-            if len(main_df) == 0: main_df = df
-            else: main_df = main_df.join(df, how="outer")
-
-            main_df.dropna(inplace=True)
-        return main_df
+        df.dropna(inplace=True)
+        return df
 
 
     ## returns train_x and train_y

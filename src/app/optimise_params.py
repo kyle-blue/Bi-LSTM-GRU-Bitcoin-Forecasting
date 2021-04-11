@@ -22,14 +22,13 @@ def create_tf_session():
 def optimise_params(symbol: str, should_use_indicators: bool):
 
     preprocessor = DataPreprocesser(
-        f"{os.environ['WORKSPACE']}/data/crypto",
+        f"{os.environ['WORKSPACE']}/data/crypto/{symbol}.parquet",
         col_names=["open", "high", "low", "close", "volume"],
         forecast_col_name="close",
-        forecast_file=f"{symbol}.parquet",
         sequence_length=250
     )
     if not preprocessor.has_loaded and should_use_indicators:
-        indicator_df = get_select_indicator_values(preprocessor.df_original, symbol)
+        indicator_df = get_select_indicator_values(preprocessor.df_original)
         preprocessor.change_data(indicator_df)
         preprocessor.print_df()
 

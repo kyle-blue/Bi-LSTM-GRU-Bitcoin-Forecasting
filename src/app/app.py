@@ -8,7 +8,7 @@ from app.test_model import test_model
 from .indicator_correlations import indicator_correlations
 
 SYMBOL_TO_PREDICT = Symbol.BTC_USDT.value
-SHOULD_USE_INDICATORS = True
+SHOULD_USE_INDICATORS = False
 
 def start():
     create_tf_session()
@@ -41,11 +41,10 @@ def start():
 
 def train_model():
     preprocessor = DataPreprocesser(
-        f"{os.environ['WORKSPACE']}/data/crypto",
+        f"{os.environ['WORKSPACE']}/data/crypto/{SYMBOL_TO_PREDICT}.parquet",
         col_names=["open", "high", "low", "close", "volume"],
         forecast_col_name="close",
-        forecast_file=f"{SYMBOL_TO_PREDICT}.parquet",
-        sequence_length=250
+        sequence_length=200
     )
     if not preprocessor.has_loaded and SHOULD_USE_INDICATORS:
         indicator_df = get_select_indicator_values(preprocessor.df_original, SYMBOL_TO_PREDICT)
@@ -63,7 +62,7 @@ def train_model():
         preprocessor.get_seq_info_str(),
         architecture=Architecture.LSTM.value,
         is_bidirectional=True,
-        batch_size=1500,
+        batch_size=1024,
         hidden_layers=2,
         neurons_per_layer=100,
         dropout=0.2,
