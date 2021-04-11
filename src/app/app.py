@@ -48,9 +48,10 @@ def train_model():
         sequence_length=250
     )
     if not preprocessor.has_loaded and SHOULD_USE_INDICATORS:
-        indicator_df = get_select_indicator_values(preprocessor.df_original)
+        indicator_df = get_select_indicator_values(preprocessor.df_original, SYMBOL_TO_PREDICT)
         preprocessor.change_data(indicator_df)
         preprocessor.print_df()
+
 
     preprocessor.preprocess()
 

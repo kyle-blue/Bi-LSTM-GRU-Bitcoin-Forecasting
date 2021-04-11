@@ -29,7 +29,7 @@ def optimise_params(symbol: str, should_use_indicators: bool):
         sequence_length=250
     )
     if not preprocessor.has_loaded and should_use_indicators:
-        indicator_df = get_select_indicator_values(preprocessor.df_original)
+        indicator_df = get_select_indicator_values(preprocessor.df_original, symbol)
         preprocessor.change_data(indicator_df)
         preprocessor.print_df()
 

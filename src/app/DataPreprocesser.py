@@ -63,7 +63,7 @@ class DataPreprocesser():
             return
         ## Split validation and training set
         train_and_val_df, test_df = np.split(self.df, [-int(self.test_split * len(self.df))])
-        train_and_val_df.sample(frac = 1) # Shuffle validation and train together (but not test)
+        train_and_val_df = train_and_val_df.sample(frac = 1) # Shuffle validation and train together (but not test)
         train_df, validation_df = np.split(train_and_val_df, [-int(self.val_split * len(self.df))]) # Validation is same size as test_df
 
         ## Make sequences
