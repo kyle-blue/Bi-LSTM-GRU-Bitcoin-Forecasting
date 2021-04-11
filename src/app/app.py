@@ -8,7 +8,7 @@ from app.test_model import test_model
 from .indicator_correlations import indicator_correlations
 
 SYMBOL_TO_PREDICT = Symbol.BTC_USDT.value
-SHOULD_USE_INDICATORS = False
+SHOULD_USE_INDICATORS = True
 
 def start():
     create_tf_session()
@@ -63,11 +63,11 @@ def train_model():
         preprocessor.get_seq_info_str(),
         architecture=Architecture.LSTM.value,
         is_bidirectional=True,
-        batch_size=2048,
-        hidden_layers=1,
-        neurons_per_layer=90,
-        dropout=0.2475,
-        initial_learn_rate=0.038
+        batch_size=1024,
+        hidden_layers=2,
+        neurons_per_layer=100,
+        dropout=0.2,
+        initial_learn_rate=0.001
     )
     
     preprocessor.print_dataset_totals()
