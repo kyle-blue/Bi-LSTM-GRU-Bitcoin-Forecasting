@@ -63,7 +63,7 @@ def train_model():
         preprocessor.get_seq_info_str(),
         architecture=Architecture.LSTM.value,
         is_bidirectional=True,
-        batch_size=1024,
+        batch_size=1500,
         hidden_layers=2,
         neurons_per_layer=100,
         dropout=0.2,
