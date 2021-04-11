@@ -2,6 +2,7 @@ import os
 from app.DataPreprocesser import DataPreprocesser
 from app.Model import Model
 from app.get_indicators import get_select_indicator_values
+from app.multi_test import multi_test
 from app.optimise_params import create_tf_session, optimise_params
 from app.parameters import Architecture, Symbol
 from app.test_model import test_model
@@ -34,6 +35,9 @@ def start():
         if inp == 4:
             optimise_params(SYMBOL_TO_PREDICT, SHOULD_USE_INDICATORS)
             is_valid = True
+        if inp == 4:
+            multi_test(SYMBOL_TO_PREDICT)
+            is_valid = True
         if not is_valid:
             print("Please choose a valid option...")
 
@@ -47,7 +51,7 @@ def train_model():
         sequence_length=200
     )
     if not preprocessor.has_loaded and SHOULD_USE_INDICATORS:
-        indicator_df = get_select_indicator_values(preprocessor.df_original, SYMBOL_TO_PREDICT)
+        indicator_df = get_select_indicator_values(preprocessor.df_original)
         preprocessor.change_data(indicator_df)
         preprocessor.print_df()
 

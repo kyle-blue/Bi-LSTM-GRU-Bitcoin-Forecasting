@@ -232,7 +232,11 @@ class DataPreprocesser():
             if i >= symbol_data_len - self.forecast_period:
                 future.append(NaN) # We can't forecast these so we remove them
                 continue
-            future.append(sum(symbol_data[i:i + self.forecast_period])) # Add the sum of the last x % changes
+            combined_pct = 1
+            for x in symbol_data[i:i + self.forecast_period]:
+                combined_pct *= (1 + x)
+            combined_pct -= 1
+            future.append(combined_pct) # Add the sum of the last x % changes
 
         self.df["target"] = future
         self.df.dropna(inplace=True)

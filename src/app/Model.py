@@ -1,4 +1,5 @@
 from datetime import datetime
+import time
 import tensorflow as tf
 from tensorflow.python.keras.models import Sequential
 from tensorflow.python.keras.layers import Dense, Dropout, BatchNormalization, LSTM, GRU, CuDNNLSTM, CuDNNGRU, Bidirectional
@@ -35,6 +36,7 @@ class Model():
         self.seq_info = seq_info
         self.early_stop_patience = early_stop_patience
         self.random_seed = random_seed
+        self.train_time = 0
 
         self.train_x = train_x
         self.train_y = train_y
@@ -55,6 +57,7 @@ class Model():
         return self.model
 
     def train(self):
+        start = time.time()
         early_stop = EarlyStopping(monitor='val_loss', patience=self.early_stop_patience, restore_best_weights=True)
         tensorboard = TensorBoard(log_dir=f"logs/{self.seq_info}__{self.get_model_info_str()}__{datetime.now().timestamp()}")
 
@@ -71,6 +74,9 @@ class Model():
         self.score = self.model.evaluate(self.validation_x, self.validation_y, verbose=0)
         self.score = {out: self.score[i] for i, out in enumerate(self.model.metrics_names)}
         print('Scores:', self.score)
+        end = time.time()
+        self.train_time = end - start
+
 
     def save_model(self):
         self._save_model_config()
