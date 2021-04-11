@@ -1,5 +1,5 @@
 import math
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 import random
 
 class Limit():
@@ -12,6 +12,7 @@ class Chromosome():
         self.limits = limits # Gene upper and lower limits
         self.values: Dict[str, float] = {} # Gene Values
         self.fitness = 0.0 # Current Fitness
+        self.other: Dict[str, Any] = {}
 
         self.init_values()
 

@@ -83,6 +83,7 @@ def optimise_params(symbol: str, should_use_indicators: bool):
         model.train()
         r_square = model.score["RSquaredMetric"]
         fitness = r_square
+        chromosome.other["mae"] = model.score["mae"]
 
         ## Cleanup
         del model
@@ -92,7 +93,8 @@ def optimise_params(symbol: str, should_use_indicators: bool):
 
 
     ga = GeneticAlgorithm(limits, fitness_func,
-        population_size=10, mutation_rate=0.01, generations=20)
+        population_size=10, mutation_rate=0.01, generations=20,
+        log_file="results/params_optimisation.csv")
     ga.start()
 
     ## Save best model to a specific folder

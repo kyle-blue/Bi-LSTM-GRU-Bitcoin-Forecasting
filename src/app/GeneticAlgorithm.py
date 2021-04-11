@@ -1,4 +1,6 @@
 
+from datetime import datetime
+import os
 from typing import Callable, Dict, List, Tuple
 from .Chromosome import Chromosome, Limit
 import random
@@ -13,13 +15,16 @@ import numpy as np
 
 class GeneticAlgorithm:
     def __init__(self, limits: Dict[str, Limit], fitness_func: Callable[[Chromosome], float], *,
-        population_size=10, mutation_rate=0.05, crossover_rate=0.9, generations=20):
+        population_size=10, mutation_rate=0.05, crossover_rate=0.9, generations=20, log_file:str=None):
         self.population_size = population_size
         self.mutation_rate = mutation_rate
         self.crossover_rate = crossover_rate
         self.generations = generations
         self.limits = limits
         self.fitness_func = fitness_func
+        self.log_file = f"{os.environ['WORKSPACE']}/{log_file}-{datetime.now().timestamp()}"
+        open(self.log_file, 'a').close() ## Create log file
+        
 
         self.best_fitnesses: List[float] = []
         self.avg_fitnesses: List[float] = []
@@ -35,7 +40,7 @@ class GeneticAlgorithm:
         self.calculate_fitnesses()
         print("Initial Generation Fitnesses:")
         print(self.get_fitness_info())
-        self.log_fitnesses()
+        self.log_fitnesses(generation=0)
 
         for i in range(self.generations):
             new_population: List[Chromosome] = []
@@ -54,17 +59,26 @@ class GeneticAlgorithm:
             self.calculate_fitnesses()
             print(f"Gen {i} fitnesses:")
             print(self.get_fitness_info())
-            self.log_fitnesses()
+            self.log_fitnesses(generation=(i + 1))
 
         max_index = np.argmax(self.population)
         print(f"Fittest chromosome was #{max_index} with a fitness of: {self.population[max_index].fitness}")
         print(f"Chromosome values:")
         print(self.population[max_index].values)
 
-    def log_fitnesses(self):
-        self.best_fitnesses.append(max(self.population).fitness)
+    def log_fitnesses(self, *, generation: int):
+        best = max(self.population)
+        self.best_fitnesses.append(best.fitness)
         self.worst_fitnesses.append(min(self.population).fitness)
         self.avg_fitnesses.append(np.average([x.fitness for x in self.population]))
+
+        if not os.path.exists(self.log_file):
+            with open(self.log_file, 'a') as file:
+                file.write("Generation,Fitness (R Square),MAE,Hidden Layers,Neurons Per Layer,Dropout,Initial Learn Rate")
+
+        with open(self.log_file, 'a') as file:
+            file.write(f"{generation},{best.fitness},{best.other['mae']},{best.values['hidden_layers']},{best.values['neurons_per_layer']},{best.values['dropout']},{best.values['inital_learn_rate']}")
+
 
     def get_fittest(self) -> Chromosome:
         max_index = np.argmax(self.population)
@@ -106,3 +120,4 @@ class GeneticAlgorithm:
     def create_population(self):
         for i in range(self.population_size):
             self.population.append(Chromosome(self.limits))
+
