@@ -19,11 +19,11 @@ def multi_test(SYMBOL_TO_PREDICT: str):
     }
 
     tests = [
-        (5, {"architecture": Architecture.LSTM.value, "is_bidirectional": False,}),
-        (5, {"architecture": Architecture.GRU.value, "is_bidirectional": False,}),
-        (5, {"architecture": Architecture.LSTM.value, "is_bidirectional": True,}),
-        (5, {"architecture": Architecture.GRU.value, "is_bidirectional": True,}),
-        (5, {"indicators": False}),
+        # (5, {"architecture": Architecture.LSTM.value, "is_bidirectional": False,}),
+        # (5, {"architecture": Architecture.GRU.value, "is_bidirectional": False,}),
+        # (5, {"architecture": Architecture.LSTM.value, "is_bidirectional": True,}),
+        # (5, {"architecture": Architecture.GRU.value, "is_bidirectional": True,}),
+        # (5, {"indicators": False}),
         (5, {"indicators": True}),
         (1, {"sequence_length": 50}),
         (1, {"sequence_length": 100}),
@@ -51,11 +51,14 @@ def multi_test(SYMBOL_TO_PREDICT: str):
 
     folder = f"{os.environ['WORKSPACE']}/results/tests"
     for test_num, test in enumerate(tests):
+        test_num = test_num + 5
         num_repeats = test[0]
         additional_params = test[1]
         new_params = {**params, **additional_params}
 
-        pre = preprocessor
+        pre = None
+        try: pre = preprocessor
+        except: pass
         if "sequence_length" in additional_params or "forecast_period" in additional_params or "indicators" in additional_params:
             try:
                 del preprocessor
@@ -69,6 +72,7 @@ def multi_test(SYMBOL_TO_PREDICT: str):
                 sequence_length=new_params["sequence_length"],
                 should_ask_load=False
             )
+            pre.preprocess()
             if new_params["indicators"]:
                 indicator_df = get_select_indicator_values(pre.df_original)
                 pre.change_data(indicator_df)
