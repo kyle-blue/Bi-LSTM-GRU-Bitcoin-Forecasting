@@ -49,7 +49,7 @@ def train_model():
         f"{os.environ['WORKSPACE']}/data/crypto/{SYMBOL_TO_PREDICT}.parquet",
         col_names=["open", "high", "low", "close", "volume"],
         forecast_col_name="close",
-        sequence_length=200
+        sequence_length=50
     )
     if not preprocessor.has_loaded and SHOULD_USE_INDICATORS:
         indicator_df = get_select_indicator_values(preprocessor.df_original)
@@ -65,7 +65,7 @@ def train_model():
     model = Model(
         train_x, train_y, validation_x, validation_y,
         preprocessor.get_seq_info_str(),
-        architecture=Architecture.LSTM.value,
+        architecture=Architecture.GRU.value,
         is_bidirectional=True,
         batch_size=1024,
         hidden_layers=2,

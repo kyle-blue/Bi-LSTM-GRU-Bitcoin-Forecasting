@@ -19,11 +19,11 @@ def multi_test(SYMBOL_TO_PREDICT: str):
     }
 
     tests = [
-        # (5, {"architecture": Architecture.LSTM.value, "is_bidirectional": False,}),
-        # (5, {"architecture": Architecture.GRU.value, "is_bidirectional": False,}),
-        # (5, {"architecture": Architecture.LSTM.value, "is_bidirectional": True,}),
-        # (5, {"architecture": Architecture.GRU.value, "is_bidirectional": True,}),
-        # (5, {"indicators": False}),
+        (5, {"architecture": Architecture.LSTM.value, "is_bidirectional": False,}),
+        (5, {"architecture": Architecture.GRU.value, "is_bidirectional": False,}),
+        (5, {"architecture": Architecture.LSTM.value, "is_bidirectional": True,}),
+        (5, {"architecture": Architecture.GRU.value, "is_bidirectional": True,}),
+        (5, {"indicators": False}),
         (5, {"indicators": True}),
         (1, {"sequence_length": 50}),
         (1, {"sequence_length": 100}),
@@ -51,7 +51,7 @@ def multi_test(SYMBOL_TO_PREDICT: str):
 
     folder = f"{os.environ['WORKSPACE']}/results/tests"
     for test_num, test in enumerate(tests):
-        test_num = test_num + 5
+        test_num = test_num
         num_repeats = test[0]
         additional_params = test[1]
         new_params = {**params, **additional_params}

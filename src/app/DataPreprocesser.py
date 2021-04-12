@@ -63,13 +63,14 @@ class DataPreprocesser():
             return
         ## Split validation and training set
         train_and_val_df, test_df = np.split(self.df, [-int(self.test_split * len(self.df))])
-        train_and_val_df = train_and_val_df.sample(frac = 1) # Shuffle validation and train together (but not test)
-        train_df, validation_df = np.split(train_and_val_df, [-int(self.val_split * len(self.df))]) # Validation is same size as test_df
+
+        ratio = self.val_split / self.test_split
 
         ## Make sequences
-        self.train_x, self.train_y = self._make_sequences(train_df)
-        self.validation_x, self.validation_y = self._make_sequences(validation_df)
+        train_and_val_x, train_and_val_y = self._make_sequences(train_and_val_df)
         self.test_x, self.test_y = self._make_sequences(test_df, should_shuffle = False)
+        self.train_x, self.validation_x = np.split(train_and_val_x, [-int(ratio * len(self.test_x))])
+        self.train_y, self.validation_y = np.split(train_and_val_y, [-int(ratio * len(self.test_y))])
 
         ## Save sequences to npy files
         self.save_datasets()

@@ -27,7 +27,7 @@ class Chromosome():
 
     def crossover(self, other: "Chromosome", crossover_rate: float, *, type="UNIFORM") -> Tuple["Chromosome", "Chromosome"]:
         # May not crossover depending on crossover rate
-        if random.uniform(0, 1) < crossover_rate:
+        if random.uniform(0, 1) > crossover_rate:
             return self, other
                     
         child1 = Chromosome(self.limits)

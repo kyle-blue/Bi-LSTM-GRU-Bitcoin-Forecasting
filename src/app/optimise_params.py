@@ -25,7 +25,7 @@ def optimise_params(symbol: str, should_use_indicators: bool):
         f"{os.environ['WORKSPACE']}/data/crypto/{symbol}.parquet",
         col_names=["open", "high", "low", "close", "volume"],
         forecast_col_name="close",
-        sequence_length=250
+        sequence_length=50
     )
     if not preprocessor.has_loaded and should_use_indicators:
         indicator_df = get_select_indicator_values(preprocessor.df_original)
@@ -44,7 +44,8 @@ def optimise_params(symbol: str, should_use_indicators: bool):
         "hidden_layers": Limit(1, 4),
         "neurons_per_layer": Limit(16, 128),
         "dropout": Limit(0.0, 0.5),
-        "initial_learn_rate": Limit(0.000001, 0.1)
+        "initial_learn_rate": Limit(0.000001, 0.1),
+        "batch_size": Limit(50, 2000),
     }
 
     # Returns fitness for the specified chromosome
@@ -60,21 +61,14 @@ def optimise_params(symbol: str, should_use_indicators: bool):
         create_tf_session()
         params = chromosome.values
 
-        hidden_layers = round(params["hidden_layers"])
-        batch_size = 700
-        if hidden_layers == 4: batch_size = 700
-        if hidden_layers == 3: batch_size = 1024
-        if hidden_layers == 2: batch_size = 1400
-        if hidden_layers == 1: batch_size = 2000
-
         print("Current Chromosome Params:")
         print(params)
         model = Model(train_x, train_y, validation_x, validation_y,
             preprocessor.get_seq_info_str(),
-            architecture=Architecture.LSTM.value,
+            architecture=Architecture.GRU.value,
             is_bidirectional=True,
-            batch_size=batch_size,
-            hidden_layers=hidden_layers,
+            batch_size=round(params["batch_size"]),
+            hidden_layers=round(params["hidden_layers"]),
             neurons_per_layer=round(params["neurons_per_layer"]),
             dropout=params["dropout"],
             initial_learn_rate=params["initial_learn_rate"],
@@ -92,7 +86,7 @@ def optimise_params(symbol: str, should_use_indicators: bool):
 
 
     ga = GeneticAlgorithm(limits, fitness_func,
-        population_size=10, mutation_rate=0.01, generations=20,
+        population_size=10, mutation_rate=0.025, generations=20,
         log_file="results/params_optimisation.csv")
     ga.start()
 
