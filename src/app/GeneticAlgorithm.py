@@ -121,10 +121,6 @@ class GeneticAlgorithm:
             weights = [1 / x for x in ranks] # Worse ranks get smaller weights
             parent = random.choices(pop, weights=weights, k=1)[0]
             parent_list.append(pop.pop(pop.index(parent)))
-        
-        print("Parents after selection: ")
-        for parent in parent_list:
-            print(f"{round(parent.values['batch_size'])}")
             
         # Change format to [[parent1, parent2], [parent3, parent4] ... etc]
         parents: List[Tuple[Chromosome, Chromosome]] = []
