@@ -1,4 +1,4 @@
-from typing import Deque, List
+from typing import Deque, List, Tuple
 from numpy.core.numeric import NaN
 import numpy as np
 import pandas as pd
@@ -18,11 +18,12 @@ class DataPreprocesser():
     def __init__(self, dataset_file: str, col_names: List[str], forecast_col_name:str, *,
         max_dataset_size = 100000, forecast_period = 1, sequence_length = 100,
         test_split = 0.2, val_split = 0.2,
-        should_ask_load = True):
+        should_ask_load = True, is_classification=False):
         """
         INFO GOES HERE
         """
         ## Param member vars
+        self.is_classification=is_classification
         self.forecast_period = forecast_period
         self.max_dataset_size = max_dataset_size
         self.sequence_length = sequence_length
@@ -55,6 +56,54 @@ class DataPreprocesser():
             self._generate_df()
 
 
+
+    def _balance_sequences(self, sequences_x: np.ndarray, sequences_y: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        target_index = list(self.df.columns).index("target")
+        one_indexes, zero_indexes = [], []
+        for index, target in enumerate(sequences_y):
+            if target == 1: one_indexes.append(index)
+            else: zero_indexes.append(index)
+
+        remove_arr = one_indexes if len(one_indexes) > len(zero_indexes) else zero_indexes
+        dif = abs(len(one_indexes) - len(zero_indexes))
+
+        print(f"Num 1s: {len(one_indexes)}")
+        print(f"Num 0s: {len(zero_indexes)}")
+        print(f"Len x: {len(sequences_x)} --- Len y: {len(sequences_y)}")
+
+        random.shuffle(remove_arr) # Shuffle removal order
+        for i in range(dif):
+            row = remove_arr.pop()
+            sequences_y[row] = NaN
+            for j in range(len(sequences_x[row])):
+                sequences_x[row][j][0] = NaN
+            
+        sequences_x = sequences_x[~np.isnan(sequences_x).any(axis=2)].reshape(-1, sequences_x.shape[1], sequences_x.shape[2])
+        sequences_y = sequences_y[~np.isnan(sequences_y)]
+
+        one_indexes, zero_indexes = [], []
+        for index, target in enumerate(sequences_y):
+            if target == 1: one_indexes.append(index)
+            else: zero_indexes.append(index)
+
+        print(f"AFTER Num 1s: {len(one_indexes)}")
+        print(f"AFTER Num 0s: {len(zero_indexes)}")
+        print(f"AFTER Len x: {len(sequences_x)} --- Len y: {len(sequences_y)}")
+
+
+        return sequences_x, sequences_y
+
+
+
+    def _shuffle_seq(self, x: np.ndarray, y: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        temp = list(zip(x, y))
+        random.shuffle(temp)
+        x, y = zip(*temp)
+        x = np.array(x)
+        y = np.array(y)
+        return x, y
+
+
     ### PUBLIC FUNCTIONS ###
 
     def preprocess(self): # This must be done from outside this class
@@ -62,15 +111,17 @@ class DataPreprocesser():
             print("\nWARNING: The data loaded was already preprocessed! Skipping the preprocessing step!\n")
             return
         ## Split validation and training set
-        train_and_val_df, test_df = np.split(self.df, [-int(self.test_split * len(self.df))])
+        sequences_x, sequences_y = self._make_sequences(self.df, should_shuffle=False)
+        if self.is_classification:
+            sequences_x, sequences_y = self._balance_sequences(sequences_x, sequences_y)
 
-        ratio = self.val_split / self.test_split
+        train_and_val_x, self.test_x = np.split(sequences_x, [-int(self.test_split * len(sequences_x))])
+        train_and_val_y, self.test_y = np.split(sequences_y, [-int(self.test_split * len(sequences_y))])
 
-        ## Make sequences
-        train_and_val_x, train_and_val_y = self._make_sequences(train_and_val_df)
-        self.test_x, self.test_y = self._make_sequences(test_df, should_shuffle = False)
-        self.train_x, self.validation_x = np.split(train_and_val_x, [-int(ratio * len(self.test_x))])
-        self.train_y, self.validation_y = np.split(train_and_val_y, [-int(ratio * len(self.test_y))])
+        train_and_val_x, train_and_val_y = self._shuffle_seq(train_and_val_x, train_and_val_y)
+        
+        self.train_x, self.validation_x = np.split(train_and_val_x, [-int(self.val_split * len(sequences_x))])
+        self.train_y, self.validation_y = np.split(train_and_val_y, [-int(self.val_split * len(sequences_y))])
 
         ## Save sequences to npy files
         self.save_datasets()
@@ -237,19 +288,22 @@ class DataPreprocesser():
         ## Add future price column to main_df (which is now the target)
         future = []
 
-        symbol_data = pd.DataFrame()
-        symbol_data = self.df[self.forecast_col_name]
-        symbol_data_len = len(symbol_data)
+        values = self.df[self.forecast_col_name]
 
-        for i in range(symbol_data_len):
-            if i >= symbol_data_len - self.forecast_period:
+        for i in range(len(values)):
+            if i >= len(values) - self.forecast_period:
                 future.append(NaN) # We can't forecast these so we remove them
                 continue
             combined_pct = 1
-            for x in symbol_data[i + 1:i + self.forecast_period + 1]:
+            for x in values[i + 1:i + self.forecast_period + 1]:
                 combined_pct *= (1 + x)
             combined_pct -= 1
-            future.append(combined_pct) # Add the sum of the last x % changes
+
+            if self.is_classification:
+                number = 1 if combined_pct > 0 else 0
+                future.append(number)
+            else:
+                future.append(combined_pct) # Add the sum of the last x % changes
 
         self.df["target"] = future
         self.df.dropna(inplace=True)

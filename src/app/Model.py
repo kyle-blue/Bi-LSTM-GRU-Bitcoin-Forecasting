@@ -19,7 +19,7 @@ class Model():
         max_epochs = 100, batch_size = 1024, hidden_layers = 2,
         neurons_per_layer = 64, architecture = Architecture.LSTM.value, dropout = 0.1,
         is_bidirectional = False, initial_learn_rate = 0.001, early_stop_patience = 6,
-        random_seed=None):
+        random_seed=None, is_classification=False):
         """
         INFO GOES HERE
         """
@@ -34,6 +34,7 @@ class Model():
         self.is_bidirectional = is_bidirectional
         self.initial_learn_rate = initial_learn_rate
         self.seq_info = seq_info
+        self.is_classification = is_classification
         self.early_stop_patience = early_stop_patience
         self.random_seed = random_seed
         self.train_time = 0
@@ -113,19 +114,27 @@ class Model():
             self.model.add(Dropout(self.dropout, seed=self.random_seed))
             self.model.add(BatchNormalization())
             
-
-        self.model.add(Dense(1))
+        if self.is_classification:
+            self.model.add(Dense(2, activation="sigmoid"))
+        else:
+            self.model.add(Dense(1))
 
         adam = tf.keras.optimizers.Adam(learning_rate=self.initial_learn_rate)
 
 
-        
-        # Compile model
-        self.model.compile(
-            loss="mae", 
-            optimizer=adam,
-            metrics=["mae", RSquaredMetric]
-        )
+        if self.is_classification:
+            self.model.compile(
+                loss="sparse_categorical_crossentropy", 
+                optimizer=adam,
+                metrics=["sparse_categorical_crossentropy", "accuracy"]
+            )
+        else:
+            self.model.compile(
+                loss=RSquaredMetricNeg, 
+                optimizer=adam,
+                metrics=["mae", RSquaredMetric]
+            )
+            
 
 
     def _use_gpu_if_available(self):
@@ -140,7 +149,11 @@ class Model():
 
     
     def _save_model_weights(self):
-        file_path = f"models/final/{self.seq_info}__{self.get_model_info_str()}__{self.max_epochs}-{self.score['RSquaredMetric']:.3f}.h5"
+        file_path = ""
+        if self.is_classification:
+            file_path = f"models/final/{self.seq_info}__{self.get_model_info_str()}__{self.max_epochs}-{self.score['sparse_categorical_crossentropy']:.3f}.h5"
+        else:
+            file_path = f"models/final/{self.seq_info}__{self.get_model_info_str()}__{self.max_epochs}-{self.score['RSquaredMetric']:.3f}.h5"
         self.model.save_weights(file_path)
         print(f"Saved model weights to: {file_path}")
 

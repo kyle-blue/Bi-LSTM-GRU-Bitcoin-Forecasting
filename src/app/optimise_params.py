@@ -10,6 +10,8 @@ import matplotlib.pyplot as plt
 import tensorflow.keras.backend as K
 
 
+IS_CLASSIFICATION = False
+
 def create_tf_session():
     ## Only allocate required GPU space
     config = tf.compat.v1.ConfigProto()
@@ -25,7 +27,8 @@ def optimise_params(symbol: str, should_use_indicators: bool):
         f"{os.environ['WORKSPACE']}/data/crypto/{symbol}.parquet",
         col_names=["open", "high", "low", "close", "volume"],
         forecast_col_name="close",
-        sequence_length=50
+        sequence_length=50,
+        is_classification=IS_CLASSIFICATION
     )
     if not preprocessor.has_loaded and should_use_indicators:
         indicator_df = get_select_indicator_values(preprocessor.df_original)
@@ -73,6 +76,7 @@ def optimise_params(symbol: str, should_use_indicators: bool):
             neurons_per_layer=round(params["neurons_per_layer"]),
             dropout=params["dropout"],
             initial_learn_rate=params["initial_learn_rate"],
+            is_classification=IS_CLASSIFICATION
         )
         model.train()
         r_square = model.score["RSquaredMetric"]
