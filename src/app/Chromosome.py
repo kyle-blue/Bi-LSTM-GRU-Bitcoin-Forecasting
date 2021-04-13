@@ -31,7 +31,7 @@ class Chromosome():
             return self, other
                     
         child1 = Chromosome(self.limits)
-        child2 = Chromosome(self.limits)
+        child2 = Chromosome(other.limits)
         
         for key in self.limits:
             parent1_gene = self.values[key]

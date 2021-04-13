@@ -15,14 +15,17 @@ import numpy as np
 
 class GeneticAlgorithm:
     def __init__(self, limits: Dict[str, Limit], fitness_func: Callable[[Chromosome], float], *,
-        population_size=10, mutation_rate=0.05, crossover_rate=0.9, generations=20, log_file:str=None):
+        population_size=10, mutation_rate=0.2, crossover_rate=0.9, generations=20, log_file:str=None,
+        elitism=2):
         self.population_size = population_size
-        self.mutation_rate = mutation_rate
         self.crossover_rate = crossover_rate
         self.generations = generations
+        self.elitism = elitism
         self.limits = limits
         self.fitness_func = fitness_func
-        self.log_file = f"{os.environ['WORKSPACE']}/{log_file.split('.')[0]}-{datetime.now().timestamp()}.csv"
+        self.log_file = None
+        if log_file is not None:
+            self.log_file = f"{os.environ['WORKSPACE']}/{log_file.split('.')[0]}-{datetime.now().timestamp()}.csv"
         
 
         self.best_fitnesses: List[float] = []
@@ -31,6 +34,11 @@ class GeneticAlgorithm:
 
         self.population: List[Chromosome] = [] 
         self.create_population()
+
+    def get_elite(self):
+        pop = self.population.copy()
+        pop.sort(reverse=True)
+        return pop[:self.elitism]
 
     def start(self):
         print("Starting Genetic Algorithm...")
@@ -51,6 +59,9 @@ class GeneticAlgorithm:
                 child2.mutate(self.mutation_rate)
                 new_population.append(child1)
                 new_population.append(child2)
+            elite = self.get_elite()
+            for chromosome in elite:
+                new_population.append(chromosome)
 
             self.population = new_population
 
@@ -71,12 +82,13 @@ class GeneticAlgorithm:
         self.worst_fitnesses.append(min(self.population).fitness)
         self.avg_fitnesses.append(np.average([x.fitness for x in self.population]))
 
-        if not os.path.exists(self.log_file):
-            with open(self.log_file, 'a') as file:
-                file.write("Generation,Fitness (R Square),MAE,Hidden Layers,Neurons Per Layer,Batch Size,Dropout,Initial Learn Rate\n")
+        if self.log_file != None:
+            if not os.path.exists(self.log_file):
+                with open(self.log_file, 'a') as file:
+                    file.write("Generation,Fitness (R Square),MAE,Hidden Layers,Neurons Per Layer,Batch Size,Dropout,Initial Learn Rate\n")
 
-        with open(self.log_file, 'a') as file:
-            file.write(f"{generation},{best.fitness},{best.other['mae']},{best.values['hidden_layers']},{best.values['neurons_per_layer']},{best.values['batch_size']},{best.values['dropout']},{best.values['initial_learn_rate']}\n")
+            with open(self.log_file, 'a') as file:
+                file.write(f"{generation},{best.fitness},{best.other['mae']},{best.values['hidden_layers']},{best.values['neurons_per_layer']},{best.values['batch_size']},{best.values['dropout']},{best.values['initial_learn_rate']}\n")
 
 
     def get_fittest(self) -> Chromosome:
@@ -101,11 +113,19 @@ class GeneticAlgorithm:
 
     
     def rank_based_selection(self, population: List[Chromosome]) -> List[Tuple[Chromosome, Chromosome]]:
-        population.sort(reverse=True)
-        ranks = [index + 1 for index, x in enumerate(population)]
-        weights = [1 / x for x in ranks] # Worse ranks get smaller weights
-        parent_list = random.choices(population, weights=weights, k=len(population))
+        parent_list = []
+        pop = population.copy()
+        pop.sort(reverse=True)
+        for i in range(len(pop)):
+            ranks = [index + 1 for index, x in enumerate(pop)]
+            weights = [1 / x for x in ranks] # Worse ranks get smaller weights
+            parent = random.choices(pop, weights=weights, k=1)[0]
+            parent_list.append(pop.pop(pop.index(parent)))
         
+        print("Parents after selection: ")
+        for parent in parent_list:
+            print(f"{round(parent.values['batch_size'])}")
+            
         # Change format to [[parent1, parent2], [parent3, parent4] ... etc]
         parents: List[Tuple[Chromosome, Chromosome]] = []
         for i in range(0, self.population_size, 2):
