@@ -86,7 +86,7 @@ def optimise_params(symbol: str, should_use_indicators: bool):
         return fitness
 
 
-    ga = GeneticAlgorithm(limits, maximisation_fitness_func,
+    ga = GeneticAlgorithm(limits, fitness_func,
         population_size=10, mutation_rate=0.2, generations=20,
         elitism=2, crossover_rate=0.9,
         log_file="results/params_optimisation.csv")
