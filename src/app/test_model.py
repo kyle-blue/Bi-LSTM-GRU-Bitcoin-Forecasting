@@ -8,6 +8,14 @@ import numpy as np
 import pandas as pd
 import string
 
+
+# Load test data
+# Load model
+# Get predictions
+# Calculate R Square and MAE (and standard deviation of the errors?)
+# Run predictions through simulator
+# actual vs predicted plot (for this, dont convert and just show a sample)
+
 SYMBOL = "TSLA"
 
 def test_model():

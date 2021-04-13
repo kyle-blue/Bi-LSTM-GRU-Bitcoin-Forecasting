@@ -55,6 +55,7 @@ def train_model():
         indicator_df = get_select_indicator_values(preprocessor.df_original)
         preprocessor.change_data(indicator_df)
         preprocessor.print_df()
+        preprocessor.print_df_no_std()
 
 
     preprocessor.preprocess()
@@ -67,11 +68,13 @@ def train_model():
         preprocessor.get_seq_info_str(),
         architecture=Architecture.GRU.value,
         is_bidirectional=True,
-        batch_size=1024,
-        hidden_layers=2,
-        neurons_per_layer=100,
-        dropout=0.2,
-        initial_learn_rate=0.001
+        batch_size=1165,
+        hidden_layers=1,
+        neurons_per_layer=116,
+        dropout=0.12,
+        initial_learn_rate=0.019,
+        early_stop_patience=10,
+        max_epochs=1000
     )
     
     preprocessor.print_dataset_totals()

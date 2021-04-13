@@ -74,7 +74,8 @@ class DataPreprocesser():
 
         ## Save sequences to npy files
         self.save_datasets()
-        self.print_df()    
+        self.print_df()
+        self.print_df_no_std()
 
 
     def print_dataset_totals(self):
@@ -125,6 +126,13 @@ class DataPreprocesser():
         print("Columns:")
         print(self.df.columns)
 
+    def print_df_no_std(self):
+        print(f"\n\nDF NO STANDARDISATION")
+        print(self.df_no_std.head(15))
+        print("Columns:")
+        print(self.df.columns)
+
+
     def save_datasets(self):
         np.save(f"{self.state_folder}/{_file_names[0]}", self.train_x)
         np.save(f"{self.state_folder}/{_file_names[1]}", self.train_y)
@@ -174,20 +182,25 @@ class DataPreprocesser():
         print("Generating new arrays of sequences for training...")
         self.df = self._get_main_dataframe()
         self.print_df()
+        self.print_df_no_std()
         self._preprocess_df()    
 
 
-    def _relative_change(self, df: pd.DataFrame, col: str):
-        avg_period = 10
-        avgs = ta.trend.SMAIndicator(df[col], avg_period).sma_indicator()
-        df[col] = avgs.sub(df[col]).div(avgs)
+    def _relative_change(self, df: pd.DataFrame):
+        for col in df.columns:
+            avg_period = 10
+            avgs = ta.trend.SMAIndicator(df[col], avg_period).sma_indicator()
+            df[col] = df[col].sub(avgs).div(avgs)
+        df.dropna(inplace=True)
         return df
 
 
     def _pct_chg(self, df: pd.DataFrame):
         for col in df.columns:
-            # print(f"{col}: {np.sum(df[col].to_numpy() == 0)}")
-            df = self._relative_change(df, col)
+            if np.sum(df[col].to_numpy() == 0) > 0:
+                df[col] = df[col] + 1 # Avoid zero errors
+            
+            df[col] = df[col].pct_change()
             df[col].replace([np.inf, -np.inf], NaN, inplace=True)
             df.dropna(inplace=True)
         return df
@@ -213,7 +226,6 @@ class DataPreprocesser():
 
         self._add_target()
         self.df_original["target"] = self.df["target"]
-
         self.df_no_std = self.df.copy()
 
         self.df = self._standardise(self.df)
@@ -234,7 +246,7 @@ class DataPreprocesser():
                 future.append(NaN) # We can't forecast these so we remove them
                 continue
             combined_pct = 1
-            for x in symbol_data[i:i + self.forecast_period]:
+            for x in symbol_data[i + 1:i + self.forecast_period + 1]:
                 combined_pct *= (1 + x)
             combined_pct -= 1
             future.append(combined_pct) # Add the sum of the last x % changes

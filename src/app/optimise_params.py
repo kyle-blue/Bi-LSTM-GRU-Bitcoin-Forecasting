@@ -31,6 +31,7 @@ def optimise_params(symbol: str, should_use_indicators: bool):
         indicator_df = get_select_indicator_values(preprocessor.df_original)
         preprocessor.change_data(indicator_df)
         preprocessor.print_df()
+        preprocessor.print_df_no_std()
 
     preprocessor.preprocess()
 

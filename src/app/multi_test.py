@@ -77,6 +77,7 @@ def multi_test(SYMBOL_TO_PREDICT: str):
                 indicator_df = get_select_indicator_values(pre.df_original)
                 pre.change_data(indicator_df)
                 pre.print_df()
+                pre.print_df_no_std()
 
         for i in range(num_repeats):
             create_tf_session()
