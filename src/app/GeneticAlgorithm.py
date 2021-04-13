@@ -19,6 +19,7 @@ class GeneticAlgorithm:
         elitism=2):
         self.population_size = population_size
         self.crossover_rate = crossover_rate
+        self.mutation_rate = mutation_rate
         self.generations = generations
         self.elitism = elitism
         self.limits = limits

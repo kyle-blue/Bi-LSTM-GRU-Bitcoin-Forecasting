@@ -66,7 +66,7 @@ def optimise_params(symbol: str, should_use_indicators: bool):
         print(params)
         model = Model(train_x, train_y, validation_x, validation_y,
             preprocessor.get_seq_info_str(),
-            architecture=Architecture.GRU.value,
+            architecture=Architecture.LSTM.value,
             is_bidirectional=True,
             batch_size=round(params["batch_size"]),
             hidden_layers=round(params["hidden_layers"]),

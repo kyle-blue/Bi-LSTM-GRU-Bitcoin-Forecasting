@@ -122,7 +122,7 @@ class Model():
         
         # Compile model
         self.model.compile(
-            loss=RSquaredMetricNeg, # Negative to make it maximise RSquared
+            loss="mae", 
             optimizer=adam,
             metrics=["mae", RSquaredMetric]
         )
