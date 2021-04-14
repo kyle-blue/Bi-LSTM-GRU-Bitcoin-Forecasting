@@ -19,6 +19,13 @@ def multi_test(SYMBOL_TO_PREDICT: str):
         "forecast_period": 10,
     }
 
+
+
+
+
+
+
+
     tests = [
         (5, {"architecture": Architecture.LSTM.value, "is_bidirectional": False,}),
         (5, {"architecture": Architecture.GRU.value, "is_bidirectional": False,}),
