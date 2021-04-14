@@ -58,26 +58,35 @@ def test_model():
     # ITERATIONS = 100
     # print(f"Testing {ITERATIONS} random sequences for {SYMBOL}")
     predictions = model.predict(test_x)
-    pred = predictions.flatten()
-    true = test_y.flatten()
-    mae = (np.absolute(pred - true)).mean()
-    correlation_matrix = np.corrcoef(pred, true)
-    correlation_xy = correlation_matrix[0,1]
-    r_squared = correlation_xy**2
-    print(f"mae = {mae}")
-    print(f"R Squared = {r_squared}")
+    true = test_y
+    # mae = (np.absolute(pred - true)).mean()
+    # correlation_matrix = np.corrcoef(pred, true)
+    # correlation_xy = correlation_matrix[0,1]
+    # r_squared = correlation_xy**2
+    # print(f"mae = {mae}")
+    # print(f"R Squared = {r_squared}")
+    num_correct = 0
+    iterations = 0
     for index, prediction in enumerate(predictions):
-        prediction = prediction[0]
-        actual = test_y[index]
-        # print(f"Prediction: {prediction} --- actual: {actual}")
+        pred_down = prediction[0]
+        pred_up = prediction[1]
+        pred = 0 if pred_down > pred_up else 1
+        actual = true[index]
+        iterations += 1
+        if pred == actual: num_correct += 1
+        print(f"prediction: {prediction}")
+        print(f"Prediction: {pred} --- actual: {actual}")
+    accuracy = num_correct / iterations    
+    print(f"Accuracy: {accuracy}")
     # print(predictions[0][0])
 
+    return
 
     balance = 10000.0
     balances = [balance]
     wins, losses = [], []
     risk = 1.0 # In percentage
-    commission = 4.0 # As percentage of risk per trade
+    commission = 0.01 # As percentage of account per trade
     upper = np.percentile(predictions, 90)
     lower = np.percentile(predictions, 10)
     print(f"Upper: {upper} --- Lower: {lower}")

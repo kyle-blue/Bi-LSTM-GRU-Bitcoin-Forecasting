@@ -118,10 +118,14 @@ class DataPreprocesser():
         train_and_val_x, self.test_x = np.split(sequences_x, [-int(self.test_split * len(sequences_x))])
         train_and_val_y, self.test_y = np.split(sequences_y, [-int(self.test_split * len(sequences_y))])
 
-        train_and_val_x, train_and_val_y = self._shuffle_seq(train_and_val_x, train_and_val_y)
+        # train_and_val_x, train_and_val_y = self._shuffle_seq(train_and_val_x, train_and_val_y)
         
         self.train_x, self.validation_x = np.split(train_and_val_x, [-int(self.val_split * len(sequences_x))])
         self.train_y, self.validation_y = np.split(train_and_val_y, [-int(self.val_split * len(sequences_y))])
+
+        self.train_x, self.train_y = self._shuffle_seq(self.train_x, self.train_y)
+        self.validation_x, self.validation_y = self._shuffle_seq(self.validation_x, self.validation_y )
+
 
         ## Save sequences to npy files
         self.save_datasets()

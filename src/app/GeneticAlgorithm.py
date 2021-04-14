@@ -16,7 +16,7 @@ import numpy as np
 class GeneticAlgorithm:
     def __init__(self, limits: Dict[str, Limit], fitness_func: Callable[[Chromosome], float], *,
         population_size=10, mutation_rate=0.2, crossover_rate=0.9, generations=20, log_file:str=None,
-        elitism=2):
+        elitism=2, is_classification=False):
         self.population_size = population_size
         self.crossover_rate = crossover_rate
         self.mutation_rate = mutation_rate
@@ -25,6 +25,7 @@ class GeneticAlgorithm:
         self.limits = limits
         self.fitness_func = fitness_func
         self.log_file = None
+        self.is_classification = is_classification
         if log_file is not None:
             self.log_file = f"{os.environ['WORKSPACE']}/{log_file.split('.')[0]}-{datetime.now().timestamp()}.csv"
         
@@ -86,10 +87,18 @@ class GeneticAlgorithm:
         if self.log_file != None:
             if not os.path.exists(self.log_file):
                 with open(self.log_file, 'a') as file:
-                    file.write("Generation,Fitness (R Square),MAE,Hidden Layers,Neurons Per Layer,Batch Size,Dropout,Initial Learn Rate\n")
+                    if self.is_classification:
+                        file.write("Generation,Fitness (R Square),MAE,Hidden Layers,Neurons Per Layer,Batch Size,Dropout,Initial Learn Rate\n")
+                    else:
+                        file.write("Generation,Fitness (Negative Sparse Categorical Crossentropy),Accuracy,Hidden Layers,Neurons Per Layer,Batch Size,Dropout,Initial Learn Rate\n")
+
+
 
             with open(self.log_file, 'a') as file:
-                file.write(f"{generation},{best.fitness},{best.other['mae']},{best.values['hidden_layers']},{best.values['neurons_per_layer']},{best.values['batch_size']},{best.values['dropout']},{best.values['initial_learn_rate']}\n")
+                if self.is_classification:
+                    file.write(f"{generation},{best.fitness},{best.other['accuracy']},{best.values['hidden_layers']},{best.values['neurons_per_layer']},{best.values['batch_size']},{best.values['dropout']},{best.values['initial_learn_rate']}\n")
+                else:
+                    file.write(f"{generation},{best.fitness},{best.other['mae']},{best.values['hidden_layers']},{best.values['neurons_per_layer']},{best.values['batch_size']},{best.values['dropout']},{best.values['initial_learn_rate']}\n")
 
 
     def get_fittest(self) -> Chromosome:

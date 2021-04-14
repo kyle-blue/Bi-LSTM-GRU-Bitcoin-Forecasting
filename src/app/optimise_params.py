@@ -62,6 +62,7 @@ def optimise_params(symbol: str, should_use_indicators: bool):
 
 
     def fitness_func(chromosome: Chromosome) -> float:
+        fitness = 0.0
         create_tf_session()
         params = chromosome.values
 
@@ -79,9 +80,13 @@ def optimise_params(symbol: str, should_use_indicators: bool):
             is_classification=IS_CLASSIFICATION
         )
         model.train()
-        r_square = model.score["RSquaredMetric"]
-        fitness = r_square
-        chromosome.other["mae"] = model.score["mae"]
+        if IS_CLASSIFICATION:
+            fitness = -model.score["sparse_categorical_crossentropy"]
+            chromosome.other["sparse_categorical_crossentropy"] = model.score["sparse_categorical_crossentropy"]
+            chromosome.other["accuracy"] = model.score["accuracy"]
+        else:
+            fitness = model.score["RSquaredMetric"]
+            chromosome.other["mae"] = model.score["mae"]
 
         ## Cleanup
         del model
@@ -93,7 +98,9 @@ def optimise_params(symbol: str, should_use_indicators: bool):
     ga = GeneticAlgorithm(limits, fitness_func,
         population_size=10, mutation_rate=0.2, generations=20,
         elitism=2, crossover_rate=0.9,
-        log_file="results/params_optimisation.csv")
+        log_file="results/params_optimisation.csv",
+        is_classification=IS_CLASSIFICATION
+    )
     
     ga.start()
 

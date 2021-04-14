@@ -17,9 +17,9 @@ class Model():
         validation_x , validation_y, seq_info:str,
         *,
         max_epochs = 100, batch_size = 1024, hidden_layers = 2,
-        neurons_per_layer = 64, architecture = Architecture.LSTM.value, dropout = 0.1,
-        is_bidirectional = False, initial_learn_rate = 0.001, early_stop_patience = 6,
-        random_seed=None, is_classification=False):
+        neurons_per_layer = 64, architecture = Architecture.LSTM.value,
+        dropout = 0.1, is_bidirectional = False, initial_learn_rate = 0.001,
+        early_stop_patience = 6, random_seed=None, is_classification=False):
         """
         INFO GOES HERE
         """
@@ -151,7 +151,7 @@ class Model():
     def _save_model_weights(self):
         file_path = ""
         if self.is_classification:
-            file_path = f"models/final/{self.seq_info}__{self.get_model_info_str()}__{self.max_epochs}-{self.score['sparse_categorical_crossentropy']:.3f}.h5"
+            file_path = f"models/final/{self.seq_info}__{self.get_model_info_str()}__{self.max_epochs}-{self.score['categorical_crossentropy']:.3f}.h5"
         else:
             file_path = f"models/final/{self.seq_info}__{self.get_model_info_str()}__{self.max_epochs}-{self.score['RSquaredMetric']:.3f}.h5"
         self.model.save_weights(file_path)

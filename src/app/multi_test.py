@@ -8,14 +8,15 @@ from app.test_model import test_model
 from .indicator_correlations import indicator_correlations
 import tensorflow.keras.backend as K
 
+IS_CLASSIFICATION = True
 
 def multi_test(SYMBOL_TO_PREDICT: str):
     params = {
-        "architecture": Architecture.LSTM.value,
-        "is_bidirectional": True,
+        "architecture": Architecture.GRU.value,
+        "is_bidirectional": False,
         "indicators": False,
         "sequence_length": 200,
-        "forecast_period": 1,
+        "forecast_period": 10,
     }
 
     tests = [
@@ -38,14 +39,17 @@ def multi_test(SYMBOL_TO_PREDICT: str):
         (1, {"forecast_period": 10}),
         (1, {"forecast_period": 20}),
         (1, {"forecast_period": 30}),
+        (1, {"forecast_period": 50}),
     ]
 
     preprocessor = DataPreprocesser(
         f"{os.environ['WORKSPACE']}/data/crypto/{SYMBOL_TO_PREDICT}.parquet",
         col_names=["open", "high", "low", "close", "volume"],
         forecast_col_name="close",
-        sequence_length=200,
-        should_ask_load=False
+        forecast_period=params["forecast_period"],
+        sequence_length=params["sequence_length"],
+        should_ask_load=False,
+        is_classification=IS_CLASSIFICATION
     )
     preprocessor.preprocess()
 
@@ -70,7 +74,8 @@ def multi_test(SYMBOL_TO_PREDICT: str):
                 forecast_col_name="close",
                 forecast_period=new_params["forecast_period"],
                 sequence_length=new_params["sequence_length"],
-                should_ask_load=False
+                should_ask_load=False,
+                is_classification=IS_CLASSIFICATION
             )
             pre.preprocess()
             if new_params["indicators"]:
@@ -96,21 +101,27 @@ def multi_test(SYMBOL_TO_PREDICT: str):
                 hidden_layers=2,
                 neurons_per_layer=100,
                 dropout=0.2,
-                initial_learn_rate=0.001
+                initial_learn_rate=0.001,
+                is_classification=IS_CLASSIFICATION
             )
             model.train()
-            r_square = model.score["RSquaredMetric"]
-            mae = model.score["mae"]
+
             train_time = float(model.train_time) / 60.0 # In Minutes
             
             file_path = f"{folder}/test{test_num}.csv"
 
             if not os.path.exists(file_path):
                 with open(file_path, 'a') as file:
-                    file.write("R Square,MAE,Train Time\n")
+                    if IS_CLASSIFICATION:
+                        file.write("Accuracy,Sparse Categorical Crossentropy,Train Time\n")
+                    else:
+                        file.write("R Square,MAE,Train Time\n")
 
             with open(file_path, 'a') as file:
-                file.write(f"{r_square},{mae},{train_time}\n")
+                if IS_CLASSIFICATION:
+                    file.write(f"{model.score['accuracy']},{model.score['sparse_categorical_crossentropy']},{train_time}\n")
+                else:
+                    file.write(f"{model.score['RSquaredMetric']},{model.score['mae']},{train_time}\n")
 
             ## Cleanup
             del model

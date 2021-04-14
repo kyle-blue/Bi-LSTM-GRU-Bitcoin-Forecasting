@@ -10,7 +10,7 @@ from .indicator_correlations import indicator_correlations
 
 SYMBOL_TO_PREDICT = Symbol.BTC_USDT.value
 SHOULD_USE_INDICATORS = False
-IS_CLASSIFICATION = False
+IS_CLASSIFICATION = True
 
 def start():
     create_tf_session()
@@ -50,8 +50,8 @@ def train_model():
         f"{os.environ['WORKSPACE']}/data/crypto/{SYMBOL_TO_PREDICT}.parquet",
         col_names=["open", "high", "low", "close", "volume"],
         forecast_col_name="close",
-        sequence_length=100,
-        forecast_period=5,
+        sequence_length=200,
+        forecast_period=10,
         is_classification=IS_CLASSIFICATION
     )
     if not preprocessor.has_loaded and SHOULD_USE_INDICATORS:
@@ -70,14 +70,14 @@ def train_model():
         train_x, train_y, validation_x, validation_y,
         preprocessor.get_seq_info_str(),
         architecture=Architecture.GRU.value,
-        is_bidirectional=True,
+        is_bidirectional=False,
         batch_size=1024,
-        hidden_layers=4,
-        neurons_per_layer=64,
-        dropout=0.12,
-        initial_learn_rate=0.019,
+        hidden_layers=2,
+        neurons_per_layer=100,
+        dropout=0.2,
+        initial_learn_rate=0.001,
         early_stop_patience=6,
-        max_epochs=1000,
+        max_epochs=100,
         is_classification=IS_CLASSIFICATION
     )
     
