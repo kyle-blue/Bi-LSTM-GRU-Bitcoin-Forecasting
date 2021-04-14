@@ -151,7 +151,7 @@ class Model():
     def _save_model_weights(self):
         file_path = ""
         if self.is_classification:
-            file_path = f"models/final/{self.seq_info}__{self.get_model_info_str()}__{self.max_epochs}-{self.score['categorical_crossentropy']:.3f}.h5"
+            file_path = f"models/final/{self.seq_info}__{self.get_model_info_str()}__{self.max_epochs}-{self.score['sparse_categorical_crossentropy']:.3f}.h5"
         else:
             file_path = f"models/final/{self.seq_info}__{self.get_model_info_str()}__{self.max_epochs}-{self.score['RSquaredMetric']:.3f}.h5"
         self.model.save_weights(file_path)

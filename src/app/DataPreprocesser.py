@@ -141,7 +141,7 @@ class DataPreprocesser():
     def get_seq_info_str(self):
         if self.dataset_name is None:
             self.dataset_name = os.listdir(self.dataset_folder)[0]
-        return f"{str(self.dataset_name)}-SeqLen{self.sequence_length}-Forward{self.forecast_period}"
+        return f"{str(self.dataset_name)}-{'Class' if self.is_classification else 'Regress'}-SeqLen{self.sequence_length}-Forward{self.forecast_period}"
 
     def get_datasets(self):
         return self.train_x, self.train_y, self.validation_x, self.validation_y, self.test_x, self.test_y

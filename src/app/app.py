@@ -51,7 +51,7 @@ def train_model():
         col_names=["open", "high", "low", "close", "volume"],
         forecast_col_name="close",
         sequence_length=200,
-        forecast_period=10,
+        forecast_period=50,
         is_classification=IS_CLASSIFICATION
     )
     if not preprocessor.has_loaded and SHOULD_USE_INDICATORS:
