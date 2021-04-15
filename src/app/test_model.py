@@ -56,27 +56,30 @@ def load_model(model_path: str):
     print(f"Successfully loaded model config from {model_config_path} and weights from {model_path}")
     return model
 
-def get_test_data(model_path: str, regress=False):
+def get_test_data(model_path: str, is_classification=False):
     info_list = os.path.split(model_path)[1].split("__")
     seq_info = info_list[0]
 
     print("Loading some unseen test data...")
     state_folder = f'{os.environ["WORKSPACE"]}/state/{seq_info}'
-    if regress:
-        state_folder = state_folder.replace("Class", "Regress")
     test_x = np.load(f"{state_folder}/test_x.npy")
     test_y = np.load(f"{state_folder}/test_y.npy")
-    
-    return test_x, test_y
+    percentages = np.array([])
+    if is_classification:
+        percentages = np.load(f"{state_folder}/percentages.npy")
 
-def get_accuracy(predictions: np.ndarray, actual: np.ndarray, min_confidence = 0.0):
+    return test_x, test_y, percentages
+
+def get_accuracy(predictions: np.ndarray, actual: np.ndarray, min_confidence = 0.0, min_dif = 0.0):
     num_correct = 0
     iterations = 0
     for index, confidences in enumerate(predictions):
         # down_confidence = confidences[0]
         # up_confidence = confidences[1]
         prediction = np.argmax(confidences)
-        if confidences[prediction] > min_confidence:
+        # print(confidences)
+        dif = abs(confidences[0] - confidences[1])
+        if confidences[prediction] > min_confidence and dif > min_dif:
             if prediction == actual[index]:
                 num_correct += 1
             iterations += 1
@@ -133,7 +136,7 @@ def do_reg_simulation(predictions: np.ndarray, test_y: np.ndarray, percentile = 
     balance = 10000.0
     balances = [balance]
     wins, losses = [], []
-    commission = 0.01 # As percentage of account per trade
+    commission = 0.05 # As percent of the trade dif
     upper = np.percentile(predictions, 100.0 - percentile / 2)
     lower = np.percentile(predictions, percentile / 2)
     # print(f"Upper: {upper} --- Lower: {lower}")
@@ -143,7 +146,7 @@ def do_reg_simulation(predictions: np.ndarray, test_y: np.ndarray, percentile = 
         prediction = prediction[0]
         actual = test_y[index]
         if prediction > upper or prediction < lower:
-            com = balance * commission
+            com = abs(actual) * commission
             should_buy = prediction > 0 # Buy if positive, sell if negative
             if should_buy:
                 new_balance = balance * (1 + actual) - com
@@ -164,8 +167,8 @@ def do_reg_simulation(predictions: np.ndarray, test_y: np.ndarray, percentile = 
     print(f"{len(balances)} trades executed")
     print(f"{len(predictions)} total predictions")
     print(f"Percentage wins: {len(wins) / (len(balances) - 1) * 100: .2f}%")
-    print(f"Average win % of acc: {np.average(wins): .2f}")
-    print(f"Average loss % of acc: {np.average(losses): .2f}")
+    print(f"Average win % of acc: {np.average(wins): .4f}")
+    print(f"Average loss % of acc: {np.average(losses): .4f}")
     print(f"Wins: {len(wins)} --- Losses: {len(losses)} --- {len(wins)/(len(wins) + len(losses)) * 100: .2f}% wins")
     print(f"% Predictions < 0: {len(predictions[predictions < 0]) / len(predictions) * 100: .4f}%")
 
@@ -201,11 +204,12 @@ def plot_predicted(predictions: np.ndarray, actual: np.ndarray, length: int):
     plt.draw()
     plt.show()
 
-def show_confusion_matrix(predictions: np.ndarray, actual: np.ndarray, min_confidence = 0.0):
+def show_confusion_matrix(predictions: np.ndarray, actual: np.ndarray, min_confidence = 0.0, min_dif = 0.0):
     test_pred, test_actual = [], []
     for index, confidences in enumerate(predictions):
         prediction = np.argmax(confidences)
-        if confidences[prediction] > min_confidence:
+        dif = abs(confidences[0] - confidences[1])
+        if confidences[prediction] > min_confidence and dif > min_dif:
             test_pred.append(prediction)
             test_actual.append(actual[index])
 
@@ -237,47 +241,46 @@ def show_confusion_matrix(predictions: np.ndarray, actual: np.ndarray, min_confi
     plt.show()
 
 
-def do_simulation(predictions: np.ndarray, test_y: np.ndarray, min_confidence = 0.0):
+def do_simulation(predictions: np.ndarray, test_y: np.ndarray, percentages: np.ndarray, min_confidence = 0.0, min_dif = 0.0):
     balance = 10000.0
     balances = [balance]
     wins, losses = [], []
-    commission = 0.01 # As percentage of account per trade
+    spread = 0.000122 # As fraction of price
+    leverage = 2
 
     print(f"\n\nStart Balance: {balance}")
     for index, confidences in enumerate(predictions):
         prediction = np.argmax(confidences)
         confidence = abs(confidences[prediction])
         actual = test_y[index]
-        if confidence > min_confidence:
+        percent = percentages[index]
+        dif = abs(confidences[0] - confidences[1])
+        if confidences[prediction] > min_confidence and dif > min_dif:
+            spread_cost = leverage * balance * spread
             new_balance = 0
-            # com = balance * commission
-            com = 0
-            should_buy = prediction == 1
-            if should_buy:
-                new_balance = balance + (balance * actual) - com
-            else: # We are selling
-                new_balance = balance - (balance * actual) - com
-            if new_balance > balance:
-                wins.append(abs(actual))
-            else:
-                losses.append(abs(actual))
+            if prediction == actual: ## Correct direction
+                new_balance = balance + (balance * abs(percent) * leverage) - spread_cost
+                wins.append(abs(percent))
+            else: ## Incorrect direction
+                new_balance = balance - (balance * abs(percent) * leverage) - spread_cost
+                losses.append(abs(percent))
             balance = new_balance
             balances.append(balance)
-            prediction_ws = " " if prediction > 0 else "" # Whitespace to align print
-            actual_ws = " " if actual > 0 else "" # Whitespace to align print
-            print(f"Prediction: {prediction_ws}{prediction:.5f} --- Actual price dif: {actual_ws}{actual:.5f} --- New Bal: {balance:.2f}")
+            # prediction_ws = " " if prediction > 0 else "" # Whitespace to align print
+            # actual_ws = " " if actual > 0 else "" # Whitespace to align print
+            # print(f"Prediction: {prediction_ws}{prediction:.5f} --- Actual price dif: {actual_ws}{actual:.5f} --- New Bal: {balance:.2f}")
 
     print(f"Final Balance: {balance: .2f}")
     print("Showing plot for final balance:")
     print(f"{len(balances)} trades executed")
     print(f"{len(predictions)} total predictions")
     print(f"Percentage wins: {len(wins) / (len(balances) - 1) * 100: .2f}%")
-    print(f"Average win % of acc: {np.average(wins): .2f}")
-    print(f"Average loss % of acc: {np.average(losses): .2f}")
+    print(f"Average win % of acc: {np.average(wins) * 100: .2f}%")
+    print(f"Average loss % of acc: {np.average(losses) * 100: .2f}%")
     print(f"Wins: {len(wins)} --- Losses: {len(losses)} --- {len(wins)/(len(wins) + len(losses)) * 100: .2f}% wins")
 
     plt.plot(balances)
-    plt.yscale("log")
+    # plt.yscale("log")
     plt.title("Balance Over Simulated Trades")
     plt.draw()
 
@@ -285,18 +288,18 @@ def test_model():
     
     model_path = get_model_path()
     model = load_model(model_path)
-    test_x, test_y = get_test_data(model_path)
+    seq_info = get_sequence_info(model_path)
+    test_x, test_y, percentages = get_test_data(model_path, seq_info.is_classification)
     predictions = model.predict(test_x)
 
-
-    seq_info = get_sequence_info(model_path)
     stats = get_stats(predictions, test_y, seq_info.is_classification)
     print(f"(Test Data) Stats:")
     for stat, value in stats.items():
         print(f"{stat}: {value}")
-    bound = 0.83 if seq_info.is_classification else 20
+    bound = 0.0 if seq_info.is_classification else 20
+    min_dif = 0.1
     if seq_info.is_classification:
-        print(f"Accuracy at {bound} confidence is {get_accuracy(predictions, test_y, bound)}")
+        print(f"Accuracy at {bound} confidence and {min_dif} min dif is {get_accuracy(predictions, test_y, bound, min_dif)}")
     else:
         print(f"Accuracy at {bound} percentile is {get_reg_accuracy(predictions, test_y, bound)}")
 
@@ -304,10 +307,9 @@ def test_model():
     
     if seq_info.is_classification:
         # do_simulation(predictions, test_y)
-        test_x1, test_y1 = get_test_data(model_path, regress=True)
-        do_simulation(predictions, test_y1, bound)
+        do_simulation(predictions, test_y, percentages, bound, min_dif)
         show_confusion_matrix(predictions, test_y)
-        show_confusion_matrix(predictions, test_y, bound)
+        show_confusion_matrix(predictions, test_y, bound, min_dif)
     else:
         # do_reg_simulation(predictions, test_y)
         do_reg_simulation(predictions, test_y, bound)

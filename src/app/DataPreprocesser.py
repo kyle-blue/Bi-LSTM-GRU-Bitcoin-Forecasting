@@ -9,7 +9,7 @@ import random
 import ta
 
 
-_file_names = ["train_x.npy", "train_y.npy", "validation_x.npy", "validation_y.npy", "test_x.npy", "test_y.npy"]
+_file_names = ["train_x.npy", "train_y.npy", "validation_x.npy", "validation_y.npy", "test_x.npy", "test_y.npy", "percentages.npy"]
 
 def standardise(arr: np.array):
     return (arr - np.mean(arr)) / np.std(arr)
@@ -43,8 +43,10 @@ class DataPreprocesser():
         self.train_x, self.train_y = np.array([]), np.array([]) 
         self.validation_x, self.validation_y = np.array([]), np.array([]) 
         self.test_x, self.test_y = np.array([]), np.array([]) 
+        self.percentages = np.array([])
 
         self.has_loaded = False
+
         
         if self.state_folder is not None and not os.path.exists(self.state_folder):
             os.makedirs(self.state_folder)
@@ -196,6 +198,9 @@ class DataPreprocesser():
         np.save(f"{self.state_folder}/{_file_names[4]}", self.test_x)
         np.save(f"{self.state_folder}/{_file_names[5]}", self.test_y)
 
+        if self.is_classification:
+            np.save(f"{self.state_folder}/{_file_names[6]}", self.percentages)
+
 
     ### PRIVATE FUNCTIONS ###    
         
@@ -298,6 +303,7 @@ class DataPreprocesser():
         """
         ## Add future price column to main_df (which is now the target)
         future = []
+        percentages = []
 
         values = self.df[self.forecast_col_name]
 
@@ -313,9 +319,11 @@ class DataPreprocesser():
             if self.is_classification:
                 number = 1 if combined_pct > 0 else 0
                 future.append(number)
+                percentages.append(combined_pct)
             else:
                 future.append(combined_pct) # Add the sum of the last x % changes
 
+        self.percentages = np.array(percentages)
         self.df["target"] = future
         self.df.dropna(inplace=True)
 
