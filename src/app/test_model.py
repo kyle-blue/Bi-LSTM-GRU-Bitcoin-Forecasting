@@ -70,16 +70,18 @@ def get_test_data(model_path: str, is_classification=False):
 
     return test_x, test_y, percentages
 
-def get_accuracy(predictions: np.ndarray, actual: np.ndarray, min_confidence = 0.0, min_dif = 0.0):
+def get_accuracy(predictions: np.ndarray, actual: np.ndarray, percentile = 100.0):
     num_correct = 0
     iterations = 0
+    difs = [abs(x - y) for x, y in predictions]
+    min_dif = np.percentile(difs, 100.0 - percentile)
     for index, confidences in enumerate(predictions):
         # down_confidence = confidences[0]
         # up_confidence = confidences[1]
         prediction = np.argmax(confidences)
         # print(confidences)
         dif = abs(confidences[0] - confidences[1])
-        if confidences[prediction] > min_confidence and dif > min_dif:
+        if dif >= min_dif:
             if prediction == actual[index]:
                 num_correct += 1
             iterations += 1
@@ -198,27 +200,30 @@ def get_stats(predictions: np.ndarray, actual: np.ndarray, is_classification: bo
 
 def plot_predicted(predictions: np.ndarray, actual: np.ndarray, length: int):
     # Plot predicted vs actual
-    plt.figure(figsize=(10, 5))
+    plt.figure(figsize=(14, 7))
     plt.plot(predictions.flatten()[:length])
     plt.plot(actual[:length])
     plt.draw()
     plt.show()
 
-def show_confusion_matrix(predictions: np.ndarray, actual: np.ndarray, min_confidence = 0.0, min_dif = 0.0):
+def show_confusion_matrix(predictions: np.ndarray, actual: np.ndarray, percentile = 100.0):
+    difs = [abs(x - y) for x, y in predictions]
+    min_dif = np.percentile(difs, 100.0 - percentile)
+
     test_pred, test_actual = [], []
     for index, confidences in enumerate(predictions):
         prediction = np.argmax(confidences)
         dif = abs(confidences[0] - confidences[1])
-        if confidences[prediction] > min_confidence and dif > min_dif:
+        if dif >= min_dif:
             test_pred.append(prediction)
             test_actual.append(actual[index])
 
     class_names = ["Down", "Up"]
     cm = confusion_matrix(test_actual, test_pred)
 
-    figure = plt.figure(figsize=(8, 8))
+    figure = plt.figure(figsize=(6, 6))
     plt.imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
-    additional_text = f" at {min_confidence} confidence" if min_confidence != 0.0 else ""
+    additional_text = f" at {percentile} percentile" if percentile != 100.0 else ""
     plt.title(f"Confusion matrix{additional_text}")
     plt.colorbar()
     tick_marks = np.arange(len(class_names))
@@ -229,9 +234,9 @@ def show_confusion_matrix(predictions: np.ndarray, actual: np.ndarray, min_confi
     labels = np.around(cm.astype('float') / cm.sum(axis=1)[:, np.newaxis], decimals=2)
 
     # Use white text if squares are dark; otherwise black.
-    threshold = (cm.max() - cm.min()) / 2.
+    avg = np.average(cm)
     for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
-        color = "white" if cm[i, j] > threshold else "black"
+        color = "white" if cm[i, j] > avg else "black"
         plt.text(j, i, labels[i, j], horizontalalignment="center", color=color)
 
     plt.tight_layout()
@@ -241,12 +246,15 @@ def show_confusion_matrix(predictions: np.ndarray, actual: np.ndarray, min_confi
     plt.show()
 
 
-def do_simulation(predictions: np.ndarray, test_y: np.ndarray, percentages: np.ndarray, min_confidence = 0.0, min_dif = 0.0):
+def do_simulation(predictions: np.ndarray, test_y: np.ndarray, percentages: np.ndarray, percentile = 0.0):
     balance = 10000.0
     balances = [balance]
     wins, losses = [], []
     spread = 0.000122 # As fraction of price
     leverage = 2
+
+    difs = [abs(x - y) for x, y in predictions]
+    min_dif = np.percentile(difs, 100.0 - percentile)
 
     print(f"\n\nStart Balance: {balance}")
     for index, confidences in enumerate(predictions):
@@ -255,7 +263,7 @@ def do_simulation(predictions: np.ndarray, test_y: np.ndarray, percentages: np.n
         actual = test_y[index]
         percent = percentages[index]
         dif = abs(confidences[0] - confidences[1])
-        if confidences[prediction] > min_confidence and dif > min_dif:
+        if dif >= min_dif:
             spread_cost = leverage * balance * spread
             new_balance = 0
             if prediction == actual: ## Correct direction
@@ -296,23 +304,22 @@ def test_model():
     print(f"(Test Data) Stats:")
     for stat, value in stats.items():
         print(f"{stat}: {value}")
-    bound = 0.0 if seq_info.is_classification else 20
-    min_dif = 0.1
+    percentile = 20
     if seq_info.is_classification:
-        print(f"Accuracy at {bound} confidence and {min_dif} min dif is {get_accuracy(predictions, test_y, bound, min_dif)}")
+        print(f"Accuracy at {percentile} percentile is {get_accuracy(predictions, test_y, percentile)}")
     else:
-        print(f"Accuracy at {bound} percentile is {get_reg_accuracy(predictions, test_y, bound)}")
+        print(f"Accuracy at {percentile} percentile is {get_reg_accuracy(predictions, test_y, percentile)}")
 
 
     
     if seq_info.is_classification:
         # do_simulation(predictions, test_y)
-        do_simulation(predictions, test_y, percentages, bound, min_dif)
+        do_simulation(predictions, test_y, percentages, percentile)
         show_confusion_matrix(predictions, test_y)
-        show_confusion_matrix(predictions, test_y, bound, min_dif)
+        show_confusion_matrix(predictions, test_y, percentile)
     else:
         # do_reg_simulation(predictions, test_y)
-        do_reg_simulation(predictions, test_y, bound)
+        do_reg_simulation(predictions, test_y, percentile)
         plot_predicted(predictions, test_y, length=50)
 
 
