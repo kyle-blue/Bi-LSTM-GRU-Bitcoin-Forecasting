@@ -1,13 +1,15 @@
 from datetime import datetime, timedelta
+import itertools
 import tensorflow as tf
-import tensorflow.python.keras as keras
+from tensorflow.python.keras.models import model_from_json
 from tensorflow.python.keras.models import Sequential
 import matplotlib.pyplot as plt
 import os
 import numpy as np
 import pandas as pd
 import string
-
+from sklearn.metrics import confusion_matrix
+from tensorflow.python.keras.utils.generic_utils import skip_failed_serialization
 
 # Load test data
 # Load model
@@ -16,9 +18,7 @@ import string
 # Run predictions through simulator
 # actual vs predicted plot (for this, dont convert and just show a sample)
 
-SYMBOL = "TSLA"
-
-def test_model():
+def get_model_path():
     model_dir = f'{os.environ["WORKSPACE"]}/models/final'
     dir_items = os.listdir(model_dir)
     dir_items.remove(".temp")
@@ -38,89 +38,132 @@ def test_model():
             print("Please enter a valid input")
 
     chosen_path = f"{model_dir}/{chosen_file}"
-    file_info = chosen_file.split("__");
-    seq_info = file_info[0]
-    model_info = file_info[1];
-    
+    return chosen_path
+
+
+
+def load_model(model_path: str):
+    info_list = os.path.split(model_path)[1].split("__")
+    model_info = info_list[1]
+
     model_config_path = f'{os.environ["WORKSPACE"]}/model_config/{model_info}.json'
     model_config = "" 
+    
     with open(model_config_path, 'r') as file:
         model_config = file.read()
-    model: Sequential = keras.models.model_from_json(model_config)
-    model.load_weights(chosen_path)
-    print(f"Successfully loaded model config from {model_config_path} and weights from {chosen_path}")
+    model: Sequential = model_from_json(model_config)
+    model.load_weights(model_path)
+    print(f"Successfully loaded model config from {model_config_path} and weights from {model_path}")
+    return model
+
+def get_test_data(model_path: str, regress=False):
+    info_list = os.path.split(model_path)[1].split("__")
+    seq_info = info_list[0]
 
     print("Loading some unseen test data...")
-    STATE_FOLDER = f'{os.environ["WORKSPACE"]}/state/{seq_info}'
-    test_x = np.load(f"{STATE_FOLDER}/test_x.npy")
-    test_y = np.load(f"{STATE_FOLDER}/test_y.npy")
+    state_folder = f'{os.environ["WORKSPACE"]}/state/{seq_info}'
+    if regress:
+        state_folder = state_folder.replace("Class", "Regress")
+    test_x = np.load(f"{state_folder}/test_x.npy")
+    test_y = np.load(f"{state_folder}/test_y.npy")
+    
+    return test_x, test_y
 
-    # ITERATIONS = 100
-    # print(f"Testing {ITERATIONS} random sequences for {SYMBOL}")
-    predictions = model.predict(test_x)
-    true = test_y
-    # mae = (np.absolute(pred - true)).mean()
-    # correlation_matrix = np.corrcoef(pred, true)
-    # correlation_xy = correlation_matrix[0,1]
-    # r_squared = correlation_xy**2
-    # print(f"mae = {mae}")
-    # print(f"R Squared = {r_squared}")
+def get_accuracy(predictions: np.ndarray, actual: np.ndarray, min_confidence = 0.0):
     num_correct = 0
     iterations = 0
-    for index, prediction in enumerate(predictions):
-        pred_down = prediction[0]
-        pred_up = prediction[1]
-        pred = 0 if pred_down > pred_up else 1
-        actual = true[index]
-        iterations += 1
-        if pred == actual: num_correct += 1
-        print(f"prediction: {prediction}")
-        print(f"Prediction: {pred} --- actual: {actual}")
-    accuracy = num_correct / iterations    
-    print(f"Accuracy: {accuracy}")
-    # print(predictions[0][0])
+    for index, confidences in enumerate(predictions):
+        # down_confidence = confidences[0]
+        # up_confidence = confidences[1]
+        prediction = np.argmax(confidences)
+        if confidences[prediction] > min_confidence:
+            if prediction == actual[index]:
+                num_correct += 1
+            iterations += 1
+    accuracy = num_correct / iterations
+    return accuracy
 
-    return
+class SeqInfo():
+    symbol: str
+    is_classification: bool
+    length: int
+    forecast_period: int
+    
+def get_sequence_info(model_path: str):
+    info_list = os.path.split(model_path)[1].split("__")
+    seq_str = info_list[0]
+    seq_str_cap = seq_str.upper()
+    seq_info = seq_str.split('-')
 
+    ret = SeqInfo()
+    ret.symbol = f"{seq_info[0]}-{seq_info[1]}"
+    ret.is_classification = ("CLASS" in seq_str_cap)
+
+    term = "SEQLEN"
+    term_loc = seq_str_cap.find(term)
+    hyphen_loc = seq_str.find('-', term_loc)
+    hyphen_loc = None if hyphen_loc == -1 else hyphen_loc
+    ret.length = int(seq_str[term_loc + len(term): hyphen_loc])
+
+    term = "FORWARD"
+    term_loc = seq_str_cap.find(term)
+    hyphen_loc = seq_str.find('-', term_loc)
+    hyphen_loc = None if hyphen_loc == -1 else hyphen_loc
+    ret.forecast_period = int(seq_str[term_loc + len(term): hyphen_loc])
+
+    return ret
+
+
+def get_reg_accuracy(predictions: np.ndarray, actual: np.ndarray, percentile = 100.0):
+    upper = np.percentile(predictions, 100.0 - percentile / 2)
+    lower = np.percentile(predictions, percentile / 2)
+
+    num_correct = 0
+    iterations = 0
+    for index, prediction_vec in enumerate(predictions):
+        prediction = prediction_vec[0]
+        if prediction > upper or prediction < lower:
+            if (prediction > 0 and actual[index] > 0) or (prediction < 0 and actual[index] < 0) :
+                num_correct += 1
+            iterations += 1
+    accuracy = num_correct / iterations
+    return accuracy
+
+def do_reg_simulation(predictions: np.ndarray, test_y: np.ndarray, percentile = 100.0):
     balance = 10000.0
     balances = [balance]
     wins, losses = [], []
-    risk = 1.0 # In percentage
     commission = 0.01 # As percentage of account per trade
-    upper = np.percentile(predictions, 90)
-    lower = np.percentile(predictions, 10)
-    print(f"Upper: {upper} --- Lower: {lower}")
+    upper = np.percentile(predictions, 100.0 - percentile / 2)
+    lower = np.percentile(predictions, percentile / 2)
+    # print(f"Upper: {upper} --- Lower: {lower}")
 
     print(f"\n\nStart Balance: {balance}")
-    num_correct_signs = 0
     for index, prediction in enumerate(predictions):
         prediction = prediction[0]
-        multiplier = risk / abs(prediction)
         actual = test_y[index]
-        if (prediction < 0 and actual < 0) or (prediction > 0 and actual > 0):
-            num_correct_signs += 1
         if prediction > upper or prediction < lower:
-            com = balance * (risk / 100) * (commission / 100)
+            com = balance * commission
             should_buy = prediction > 0 # Buy if positive, sell if negative
             if should_buy:
-                new_balance = balance * ((100 + (actual * multiplier)) / 100) - com
+                new_balance = balance * (1 + actual) - com
             else: # We are selling
-                new_balance = balance * ((100 - (actual * multiplier)) / 100) - com
+                new_balance = balance * (1 - actual) - com
             if new_balance > balance:
-                wins.append(abs(actual * multiplier))
+                wins.append(abs(actual))
             else:
-                losses.append(abs(actual * multiplier))
+                losses.append(abs(actual))
             balance = new_balance
             balances.append(balance)
-            prediction_ws = " " if prediction > 0 else "" # Whitespace to align print
-            actual_ws = " " if actual > 0 else "" # Whitespace to align print
-            print(f"Prediction: {prediction_ws}{prediction:.5f} --- Actual price dif: {actual_ws}{actual:.5f} --- New Bal: {balance:.2f}")
+            # prediction_ws = " " if prediction > 0 else "" # Whitespace to align print
+            # actual_ws = " " if actual > 0 else "" # Whitespace to align print
+            # print(f"Prediction: {prediction_ws}{prediction:.5f} --- Actual price dif: {actual_ws}{actual:.5f} --- New Bal: {balance:.2f}")
 
     print(f"Final Balance: {balance: .2f}")
     print("Showing plot for final balance:")
     print(f"{len(balances)} trades executed")
     print(f"{len(predictions)} total predictions")
-    print(f"Correct direction predicted {num_correct_signs} out of {len(predictions)} times ({num_correct_signs/len(predictions)*100: .2f}%)")
+    print(f"Percentage wins: {len(wins) / (len(balances) - 1) * 100: .2f}%")
     print(f"Average win % of acc: {np.average(wins): .2f}")
     print(f"Average loss % of acc: {np.average(losses): .2f}")
     print(f"Wins: {len(wins)} --- Losses: {len(losses)} --- {len(wins)/(len(wins) + len(losses)) * 100: .2f}% wins")
@@ -132,68 +175,145 @@ def test_model():
     plt.draw()
 
 
-    ## Load original price data and plot
-    data_folder = f'{os.environ["WORKSPACE"]}/data/crypto'
-    temp = seq_info.split('-')
-    symbol = temp[0] + "-" + temp[1]
-    look_forward = int(temp[2].strip(string.ascii_letters))
-    sequence_len = int(temp[3].strip(string.ascii_letters))
-    filename = f"{data_folder}/{symbol}.csv"
-    df = pd.read_csv(filename, parse_dates=["Time"])
-    df.set_index("Time", inplace=True)
-    df = df[["Last"]]
-    df = df[::-1]
+def get_stats(predictions: np.ndarray, actual: np.ndarray, is_classification: bool):
+    stats = {}
+    
+    if is_classification:
+        stats["accuracy"] = get_accuracy(predictions, actual)
+        scce = tf.keras.losses.SparseCategoricalCrossentropy()
+        stats["sparse_categorical_entropy"] = float(scce(actual, predictions).numpy())
 
-    df.rename(columns={"Last": "close"}, inplace=True)
+    else:
+        pred = predictions.flatten()
+        stats["mae"] = (np.absolute(pred - actual)).mean()
+        correlation_matrix = np.corrcoef(pred, actual)
+        correlation_xy = correlation_matrix[0,1]
+        stats["r_squared"] = correlation_xy**2
+        stats["accuracy"] = get_reg_accuracy(predictions, actual)
+    return stats
+
+
+def plot_predicted(predictions: np.ndarray, actual: np.ndarray, length: int):
+    # Plot predicted vs actual
+    plt.figure(figsize=(10, 5))
+    plt.plot(predictions.flatten()[:length])
+    plt.plot(actual[:length])
+    plt.draw()
+    plt.show()
+
+def show_confusion_matrix(predictions: np.ndarray, actual: np.ndarray, min_confidence = 0.0):
+    test_pred, test_actual = [], []
+    for index, confidences in enumerate(predictions):
+        prediction = np.argmax(confidences)
+        if confidences[prediction] > min_confidence:
+            test_pred.append(prediction)
+            test_actual.append(actual[index])
+
+    class_names = ["Down", "Up"]
+    cm = confusion_matrix(test_actual, test_pred)
+
+    figure = plt.figure(figsize=(8, 8))
+    plt.imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
+    additional_text = f" at {min_confidence} confidence" if min_confidence != 0.0 else ""
+    plt.title(f"Confusion matrix{additional_text}")
+    plt.colorbar()
+    tick_marks = np.arange(len(class_names))
+    plt.xticks(tick_marks, class_names, rotation=45)
+    plt.yticks(tick_marks, class_names)
+
+    # Compute the labels from the normalized confusion matrix.
+    labels = np.around(cm.astype('float') / cm.sum(axis=1)[:, np.newaxis], decimals=2)
+
+    # Use white text if squares are dark; otherwise black.
+    threshold = cm.max() / 2.
+    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
+        color = "white" if cm[i, j] > threshold else "black"
+        plt.text(j, i, labels[i, j], horizontalalignment="center", color=color)
+
+    plt.tight_layout()
+    plt.ylabel('True label')
+    plt.xlabel('Predicted label')
+    plt.draw()
+    plt.show()
+
+
+def do_simulation(predictions: np.ndarray, test_y: np.ndarray, min_confidence = 0.0):
+    balance = 10000.0
+    balances = [balance]
+    wins, losses = [], []
+    commission = 0.01 # As percentage of account per trade
+
+    print(f"\n\nStart Balance: {balance}")
+    for index, confidences in enumerate(predictions):
+        prediction = np.argmax(confidences)
+        confidence = abs(confidences[prediction])
+        actual = test_y[index]
+        if confidence > min_confidence:
+            new_balance = 0
+            # com = balance * commission
+            com = 0
+            should_buy = prediction == 1
+            if should_buy:
+                new_balance = balance + (balance * actual) - com
+            else: # We are selling
+                new_balance = balance - (balance * actual) - com
+            if new_balance > balance:
+                wins.append(abs(actual))
+            else:
+                losses.append(abs(actual))
+            balance = new_balance
+            balances.append(balance)
+            prediction_ws = " " if prediction > 0 else "" # Whitespace to align print
+            actual_ws = " " if actual > 0 else "" # Whitespace to align print
+            print(f"Prediction: {prediction_ws}{prediction:.5f} --- Actual price dif: {actual_ws}{actual:.5f} --- New Bal: {balance:.2f}")
+
+    print(f"Final Balance: {balance: .2f}")
+    print("Showing plot for final balance:")
+    print(f"{len(balances)} trades executed")
+    print(f"{len(predictions)} total predictions")
+    print(f"Percentage wins: {len(wins) / (len(balances) - 1) * 100: .2f}%")
+    print(f"Average win % of acc: {np.average(wins): .2f}")
+    print(f"Average loss % of acc: {np.average(losses): .2f}")
+    print(f"Wins: {len(wins)} --- Losses: {len(losses)} --- {len(wins)/(len(wins) + len(losses)) * 100: .2f}% wins")
+
+    plt.plot(balances)
+    plt.yscale("log")
+    plt.title("Balance Over Simulated Trades")
+    plt.draw()
+
+def test_model():
+    
+    model_path = get_model_path()
+    model = load_model(model_path)
+    test_x, test_y = get_test_data(model_path)
+    predictions = model.predict(test_x)
+
+
+    seq_info = get_sequence_info(model_path)
+    stats = get_stats(predictions, test_y, seq_info.is_classification)
+    print(f"(Test Data) Stats:")
+    for stat, value in stats.items():
+        print(f"{stat}: {value}")
+    bound = 0.83 if seq_info.is_classification else 20
+    if seq_info.is_classification:
+        print(f"Accuracy at {bound} confidence is {get_accuracy(predictions, test_y, bound)}")
+    else:
+        print(f"Accuracy at {bound} percentile is {get_reg_accuracy(predictions, test_y, bound)}")
+
 
     
-   
+    if seq_info.is_classification:
+        # do_simulation(predictions, test_y)
+        test_x1, test_y1 = get_test_data(model_path, regress=True)
+        do_simulation(predictions, test_y1, bound)
+        show_confusion_matrix(predictions, test_y)
+        show_confusion_matrix(predictions, test_y, bound)
+    else:
+        # do_reg_simulation(predictions, test_y)
+        do_reg_simulation(predictions, test_y, bound)
+        plot_predicted(predictions, test_y, length=50)
 
-    ## Get Last 20% of data (test_data)
-    train_df, test_df = np.split(df, [int(0.8 * len(df))])
-    train_df.reset_index(inplace=True)
-    test_df.reset_index(inplace=True)
-    train_df = train_df[["close"]]
-    df.reset_index(inplace=True)
-    df = df[["close"]]
-    ## Get absolute start price of last 20%
 
-
-    pred_df = pd.DataFrame()
-       
-    # for count in range(len(pred)):
-    #     prev_price = df["close"][int(0.8 * len(df)) + count]
-    #     prediction = pred[count]
-    #     actual = true[count]
-    #     new_pred = {"close": prev_price + (prev_price * (prediction / 100))}
-    #     new_norm = {"close": prev_price + (prev_price * (actual / 100))}
-    #     train_df = train_df.append(new_norm, ignore_index=True)
-    #     pred_df = pred_df.append(new_pred, ignore_index=True)
-    pred_df = pred_df.append( {"close": test_df["close"][0]}, ignore_index=True)
-    true_df = pred_df.append( {"close": test_df["close"][0]}, ignore_index=True)
     
-    for count in range(len(pred)):
-        prev_pred_price = pred_df["close"][count]
-        prev_true_price = true_df["close"][count]
-        prediction = pred[count] / look_forward # since look forward is > 1 we must divide
-        actual = true[count] / look_forward
-        new_pred = {"close": prev_pred_price + (prev_pred_price * (prediction / 100))}
-        new_true = {"close": prev_true_price + (prev_true_price * (actual / 100))}
-        pred_df = pred_df.append(new_pred, ignore_index=True)
-        true_df = true_df.append(new_true, ignore_index=True)
 
-    train_df = train_df.append(true_df, ignore_index=True)
-
-    pred_df.index = range(int(0.8 * len(df)), len(pred_df) + int(0.8 * len(df)) )
-
-    plt.figure(figsize=(40, 15))
-    plt.plot(train_df)
-    plt.draw()
-    ## Plot
-    plt.plot(pred_df)
-    plt.draw()
-    # plt.show()
-
-  
-    print(f"Mean Absolute Error = {mae}")
-    print(f"R Squared = {r_squared}")
+    

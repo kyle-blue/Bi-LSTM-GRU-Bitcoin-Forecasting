@@ -250,6 +250,13 @@ class DataPreprocesser():
         return df
 
 
+    def _relative_change_col(self, df: pd.DataFrame, col: str):
+        avg_period = 10
+        avgs = ta.trend.SMAIndicator(df[col], avg_period).sma_indicator()
+        df[col] = df[col].sub(avgs).div(avgs)
+        df.dropna(inplace=True)
+        return df
+
     def _pct_chg(self, df: pd.DataFrame):
         for col in df.columns:
             if np.sum(df[col].to_numpy() == 0) > 0:

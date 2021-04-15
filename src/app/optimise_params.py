@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import tensorflow.keras.backend as K
 
 
-IS_CLASSIFICATION = False
+IS_CLASSIFICATION = True
 
 def create_tf_session():
     ## Only allocate required GPU space
@@ -18,7 +18,7 @@ def create_tf_session():
     config.gpu_options.allow_growth = True
     session = tf.compat.v1.Session(config=config)
 
-    tf.compat.v1.disable_eager_execution()
+    tf.compat.v1.enable_eager_execution()
 
 
 def optimise_params(symbol: str, should_use_indicators: bool):
@@ -27,7 +27,8 @@ def optimise_params(symbol: str, should_use_indicators: bool):
         f"{os.environ['WORKSPACE']}/data/crypto/{symbol}.parquet",
         col_names=["open", "high", "low", "close", "volume"],
         forecast_col_name="close",
-        sequence_length=50,
+        sequence_length=100,
+        forecast_period=10,
         is_classification=IS_CLASSIFICATION
     )
     if not preprocessor.has_loaded and should_use_indicators:
@@ -70,8 +71,8 @@ def optimise_params(symbol: str, should_use_indicators: bool):
         print(params)
         model = Model(train_x, train_y, validation_x, validation_y,
             preprocessor.get_seq_info_str(),
-            architecture=Architecture.LSTM.value,
-            is_bidirectional=True,
+            architecture=Architecture.GRU.value,
+            is_bidirectional=False,
             batch_size=round(params["batch_size"]),
             hidden_layers=round(params["hidden_layers"]),
             neurons_per_layer=round(params["neurons_per_layer"]),

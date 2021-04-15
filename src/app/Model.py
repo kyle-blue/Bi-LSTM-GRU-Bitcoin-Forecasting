@@ -19,7 +19,7 @@ class Model():
         max_epochs = 100, batch_size = 1024, hidden_layers = 2,
         neurons_per_layer = 64, architecture = Architecture.LSTM.value,
         dropout = 0.1, is_bidirectional = False, initial_learn_rate = 0.001,
-        early_stop_patience = 6, random_seed=None, is_classification=False):
+        early_stop_patience = 6, is_classification=False):
         """
         INFO GOES HERE
         """
@@ -36,7 +36,6 @@ class Model():
         self.seq_info = seq_info
         self.is_classification = is_classification
         self.early_stop_patience = early_stop_patience
-        self.random_seed = random_seed
         self.train_time = 0
 
         self.train_x = train_x
@@ -101,9 +100,8 @@ class Model():
             self.model.add(Bidirectional(self.architecture(self.neurons_per_layer, input_shape=(self.train_x.shape[1:]), return_sequences=True)))
         else:
             self.model.add(self.architecture(self.neurons_per_layer, input_shape=(self.train_x.shape[1:]), return_sequences=True))
-        self.model.add(Dropout(self.dropout, seed=self.random_seed))
+        self.model.add(Dropout(self.dropout))
         self.model.add(BatchNormalization())
-
         
         for i in range(self.hidden_layers):
             return_sequences = i != self.hidden_layers - 1 # False on last iter
@@ -111,7 +109,7 @@ class Model():
                 self.model.add(Bidirectional(self.architecture(self.neurons_per_layer, return_sequences=return_sequences)))
             else:
                 self.model.add(self.architecture(self.neurons_per_layer, return_sequences=return_sequences))
-            self.model.add(Dropout(self.dropout, seed=self.random_seed))
+            self.model.add(Dropout(self.dropout))
             self.model.add(BatchNormalization())
             
         if self.is_classification:
