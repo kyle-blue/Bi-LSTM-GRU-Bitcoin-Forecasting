@@ -229,7 +229,7 @@ def show_confusion_matrix(predictions: np.ndarray, actual: np.ndarray, min_confi
     labels = np.around(cm.astype('float') / cm.sum(axis=1)[:, np.newaxis], decimals=2)
 
     # Use white text if squares are dark; otherwise black.
-    threshold = cm.max() / 2.
+    threshold = (cm.max() - cm.min()) / 2.
     for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
         color = "white" if cm[i, j] > threshold else "black"
         plt.text(j, i, labels[i, j], horizontalalignment="center", color=color)
