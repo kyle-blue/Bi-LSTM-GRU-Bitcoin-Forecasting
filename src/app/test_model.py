@@ -246,12 +246,13 @@ def show_confusion_matrix(predictions: np.ndarray, actual: np.ndarray, percentil
     plt.show()
 
 
-def do_simulation(predictions: np.ndarray, test_y: np.ndarray, percentages: np.ndarray, percentile = 0.0):
+def do_simulation(predictions: np.ndarray, test_y: np.ndarray, percentages: np.ndarray, forecast_period = 0, percentile = 0.0):
     balance = 10000.0
     balances = [balance]
     wins, losses = [], []
     spread = 0.000122 # As fraction of price
     leverage = 2
+    last_trade_index = -np.inf
 
     difs = [abs(x - y) for x, y in predictions]
     min_dif = np.percentile(difs, 100.0 - percentile)
@@ -263,7 +264,7 @@ def do_simulation(predictions: np.ndarray, test_y: np.ndarray, percentages: np.n
         actual = test_y[index]
         percent = percentages[index]
         dif = abs(confidences[0] - confidences[1])
-        if dif >= min_dif:
+        if dif >= min_dif and index > last_trade_index + forecast_period:
             spread_cost = leverage * balance * spread
             new_balance = 0
             if prediction == actual: ## Correct direction
@@ -272,6 +273,7 @@ def do_simulation(predictions: np.ndarray, test_y: np.ndarray, percentages: np.n
             else: ## Incorrect direction
                 new_balance = balance - (balance * abs(percent) * leverage) - spread_cost
                 losses.append(abs(percent))
+            last_trade_index = index
             balance = new_balance
             balances.append(balance)
             # prediction_ws = " " if prediction > 0 else "" # Whitespace to align print
@@ -314,7 +316,7 @@ def test_model():
     
     if seq_info.is_classification:
         # do_simulation(predictions, test_y)
-        do_simulation(predictions, test_y, percentages, percentile)
+        do_simulation(predictions, test_y, percentages, seq_info.forecast_period, percentile)
         show_confusion_matrix(predictions, test_y)
         show_confusion_matrix(predictions, test_y, percentile)
     else:
