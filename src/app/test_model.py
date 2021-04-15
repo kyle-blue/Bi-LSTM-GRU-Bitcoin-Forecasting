@@ -264,7 +264,8 @@ def do_simulation(predictions: np.ndarray, test_y: np.ndarray, percentages: np.n
         actual = test_y[index]
         percent = percentages[index]
         dif = abs(confidences[0] - confidences[1])
-        if dif >= min_dif and index > last_trade_index + forecast_period:
+        can_trade = index > last_trade_index + forecast_period # Cant trade if already in a trade
+        if dif >= min_dif and can_trade:
             spread_cost = leverage * balance * spread
             new_balance = 0
             if prediction == actual: ## Correct direction
@@ -276,9 +277,6 @@ def do_simulation(predictions: np.ndarray, test_y: np.ndarray, percentages: np.n
             last_trade_index = index
             balance = new_balance
             balances.append(balance)
-            # prediction_ws = " " if prediction > 0 else "" # Whitespace to align print
-            # actual_ws = " " if actual > 0 else "" # Whitespace to align print
-            # print(f"Prediction: {prediction_ws}{prediction:.5f} --- Actual price dif: {actual_ws}{actual:.5f} --- New Bal: {balance:.2f}")
 
     print(f"Final Balance: {balance: .2f}")
     print("Showing plot for final balance:")

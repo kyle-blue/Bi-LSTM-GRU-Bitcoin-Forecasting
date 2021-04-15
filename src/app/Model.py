@@ -68,6 +68,7 @@ class Model():
             epochs=self.max_epochs,
             validation_data=(self.validation_x, self.validation_y),
             callbacks=[tensorboard, early_stop],
+            shuffle=True
         )
 
         # Score model

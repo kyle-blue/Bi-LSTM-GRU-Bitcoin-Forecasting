@@ -67,6 +67,13 @@ def train_model():
     train_x, train_y = preprocessor.get_train()
     validation_x, validation_y = preprocessor.get_validation()
 
+# Best hyperparams from GA:
+# batch_size=1534,
+# hidden_layers=2,
+# neurons_per_layer=60,
+# dropout=0.4714171367290059,
+# initial_learn_rate=0.003725545984696872,
+
     model = Model(
         train_x, train_y, validation_x, validation_y,
         preprocessor.get_seq_info_str(),
@@ -75,8 +82,8 @@ def train_model():
         batch_size=1534,
         hidden_layers=2,
         neurons_per_layer=60,
-        dropout=0.31,
-        initial_learn_rate=0.0037,
+        dropout=0.4714171367290059,
+        initial_learn_rate=0.003725545984696872,
         early_stop_patience=6,
         max_epochs=100,
         is_classification=IS_CLASSIFICATION
