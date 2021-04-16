@@ -134,35 +134,38 @@ def get_reg_accuracy(predictions: np.ndarray, actual: np.ndarray, percentile = 1
     accuracy = num_correct / iterations
     return accuracy
 
-def do_reg_simulation(predictions: np.ndarray, test_y: np.ndarray, percentile = 100.0):
+def do_reg_simulation(predictions: np.ndarray, test_y: np.ndarray, forecast_period: int, percentile = 100.0):
     balance = 10000.0
     balances = [balance]
     wins, losses = [], []
-    commission = 0.05 # As percent of the trade dif
+    spread = 0.000122 # As fraction of price
+    leverage = 2.0
     upper = np.percentile(predictions, 100.0 - percentile / 2)
     lower = np.percentile(predictions, percentile / 2)
-    # print(f"Upper: {upper} --- Lower: {lower}")
+    last_trade_index = -np.inf
+
 
     print(f"\n\nStart Balance: {balance}")
     for index, prediction in enumerate(predictions):
         prediction = prediction[0]
         actual = test_y[index]
         if prediction > upper or prediction < lower:
-            com = abs(actual) * commission
+            spread_cost = leverage * balance * spread
             should_buy = prediction > 0 # Buy if positive, sell if negative
+            can_trade = index > last_trade_index + forecast_period # Cant trade if already in a trade
+            if not can_trade:
+                continue
             if should_buy:
-                new_balance = balance * (1 + actual) - com
+                new_balance = balance * (1 + (leverage * actual)) - spread_cost
             else: # We are selling
-                new_balance = balance * (1 - actual) - com
+                new_balance = balance * (1 - (leverage * actual)) - spread_cost
             if new_balance > balance:
-                wins.append(abs(actual))
+                wins.append(abs(leverage * actual))
             else:
-                losses.append(abs(actual))
+                losses.append(abs(leverage * actual))
+            last_trade_index = index
             balance = new_balance
             balances.append(balance)
-            # prediction_ws = " " if prediction > 0 else "" # Whitespace to align print
-            # actual_ws = " " if actual > 0 else "" # Whitespace to align print
-            # print(f"Prediction: {prediction_ws}{prediction:.5f} --- Actual price dif: {actual_ws}{actual:.5f} --- New Bal: {balance:.2f}")
 
     print(f"Final Balance: {balance: .2f}")
     print("Showing plot for final balance:")
@@ -175,7 +178,8 @@ def do_reg_simulation(predictions: np.ndarray, test_y: np.ndarray, percentile = 
     print(f"% Predictions < 0: {len(predictions[predictions < 0]) / len(predictions) * 100: .4f}%")
 
     plt.plot(balances)
-    plt.yscale("log")
+    plt.xlabel("Trade Number")
+    plt.ylabel("Balance (£)")
     plt.title("Balance Over Simulated Trades")
     plt.draw()
 
@@ -200,9 +204,13 @@ def get_stats(predictions: np.ndarray, actual: np.ndarray, is_classification: bo
 
 def plot_predicted(predictions: np.ndarray, actual: np.ndarray, length: int):
     # Plot predicted vs actual
-    plt.figure(figsize=(14, 7))
+    plt.figure(figsize=(5,2.5))
     plt.plot(predictions.flatten()[:length])
     plt.plot(actual[:length])
+    plt.title("Snippet of predicted vs actual prices")
+    plt.legend(["Predicted","Actual"])
+    plt.xlabel("Prediction number")
+    plt.ylabel("Price (% Change)")
     plt.draw()
     plt.show()
 
@@ -221,9 +229,9 @@ def show_confusion_matrix(predictions: np.ndarray, actual: np.ndarray, percentil
     class_names = ["Down", "Up"]
     cm = confusion_matrix(test_actual, test_pred)
 
-    figure = plt.figure(figsize=(6, 6))
+    figure = plt.figure(figsize=(3, 3))
     plt.imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
-    additional_text = f" at {percentile} percentile" if percentile != 100.0 else ""
+    additional_text = f" at \n{percentile}th percentile" if percentile != 100.0 else ""
     plt.title(f"Confusion matrix{additional_text}")
     plt.colorbar()
     tick_marks = np.arange(len(class_names))
@@ -251,7 +259,7 @@ def do_simulation(predictions: np.ndarray, test_y: np.ndarray, percentages: np.n
     balances = [balance]
     wins, losses = [], []
     spread = 0.000122 # As fraction of price
-    leverage = 2
+    leverage = 2.0
     last_trade_index = -np.inf
 
     difs = [abs(x - y) for x, y in predictions]
@@ -270,10 +278,10 @@ def do_simulation(predictions: np.ndarray, test_y: np.ndarray, percentages: np.n
             new_balance = 0
             if prediction == actual: ## Correct direction
                 new_balance = balance + (balance * abs(percent) * leverage) - spread_cost
-                wins.append(abs(percent))
+                wins.append(abs(percent) * leverage)
             else: ## Incorrect direction
                 new_balance = balance - (balance * abs(percent) * leverage) - spread_cost
-                losses.append(abs(percent))
+                losses.append(abs(percent) * leverage)
             last_trade_index = index
             balance = new_balance
             balances.append(balance)
@@ -288,7 +296,8 @@ def do_simulation(predictions: np.ndarray, test_y: np.ndarray, percentages: np.n
     print(f"Wins: {len(wins)} --- Losses: {len(losses)} --- {len(wins)/(len(wins) + len(losses)) * 100: .2f}% wins")
 
     plt.plot(balances)
-    # plt.yscale("log")
+    plt.xlabel("Trade Number")
+    plt.ylabel("Balance (£)")
     plt.title("Balance Over Simulated Trades")
     plt.draw()
 

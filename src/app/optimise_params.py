@@ -12,6 +12,17 @@ import tensorflow.keras.backend as K
 
 IS_CLASSIFICATION = True
 
+
+## Limits are inclusive
+limits = {
+    "hidden_layers": Limit(1, 4),
+    "neurons_per_layer": Limit(16, 128),
+    "dropout": Limit(0.0, 0.5),
+    "initial_learn_rate": Limit(0.000001, 0.1),
+    "batch_size": Limit(50, 2000),
+}
+
+
 def create_tf_session():
     ## Only allocate required GPU space
     config = tf.compat.v1.ConfigProto()
@@ -44,14 +55,7 @@ def optimise_params(symbol: str, should_use_indicators: bool):
 
 
 
-    ## Limits are inclusive
-    limits = {
-        "hidden_layers": Limit(1, 4),
-        "neurons_per_layer": Limit(16, 128),
-        "dropout": Limit(0.0, 0.5),
-        "initial_learn_rate": Limit(0.000001, 0.1),
-        "batch_size": Limit(50, 2000),
-    }
+    
 
     # Returns fitness for the specified chromosome
     def maximisation_fitness_func(chromosome: Chromosome) -> float:

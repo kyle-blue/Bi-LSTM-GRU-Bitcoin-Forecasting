@@ -9,6 +9,7 @@ import random
 import ta
 
 
+
 _file_names = ["train_x.npy", "train_y.npy", "validation_x.npy", "validation_y.npy", "test_x.npy", "test_y.npy", "percentages.npy"]
 
 def standardise(arr: np.array):
