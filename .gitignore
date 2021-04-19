@@ -7,6 +7,11 @@ state/**/*.pkl
 state/**/*.npy
 
 
+###### Dataset Stuff #####
+**/*.parquet
+data/**/*
+
+
 ###### PYTHON STUFF #######
 # Byte-compiled / optimized / DLL files
 __pycache__/
