@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 
 SYMBOL_TO_PREDICT = Symbol.BTC_USDT.value
 SHOULD_USE_INDICATORS = False
-IS_CLASSIFICATION = False
+IS_CLASSIFICATION = True
 
 def start():
     create_tf_session()
@@ -95,20 +95,17 @@ def train_model():
 # dropout=0.4714171367290059,
 # initial_learn_rate=0.003725545984696872,
 
-# 12,-0.03388477489352226,0.0010468143736943603,1.0443352399731154,24.289016240129982,1732.7951456065991,0.4164892976819227,0.004587161725770879
-
-
     model = Model(
         train_x, train_y, validation_x, validation_y,
         preprocessor.get_seq_info_str(),
         architecture=Architecture.GRU.value,
         is_bidirectional=False,
-        batch_size=1733,
-        hidden_layers=1,
-        neurons_per_layer=24,
+        batch_size=1534,
+        hidden_layers=2,
+        neurons_per_layer=60,
         dropout=0.4164892976819227,
         initial_learn_rate=0.004587161725770879,
-        early_stop_patience=6,
+        early_stop_patience=10,
         max_epochs=100,
         is_classification=IS_CLASSIFICATION
     )

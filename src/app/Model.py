@@ -59,7 +59,7 @@ class Model():
     def train(self):
         start = time.time()
         early_stop = EarlyStopping(monitor='val_loss', patience=self.early_stop_patience, restore_best_weights=True)
-        tensorboard = TensorBoard(log_dir=f"logs/{self.seq_info}__{self.get_model_info_str()}__{datetime.now().timestamp()}")
+        tensorboard = TensorBoard(log_dir=f"{os.environ['WORKSPACE']}/logs/{self.seq_info}__{self.get_model_info_str()}__{datetime.now().timestamp()}")
 
         # Train model
         self.training_history = self.model.fit(
@@ -150,9 +150,9 @@ class Model():
     def _save_model_weights(self):
         file_path = ""
         if self.is_classification:
-            file_path = f"models/final/{self.seq_info}__{self.get_model_info_str()}__{self.max_epochs}-{self.score['sparse_categorical_crossentropy']:.3f}.h5"
+            file_path = f"{os.environ['WORKSPACE']}/models/final/{self.seq_info}__{self.get_model_info_str()}__{self.max_epochs}-{self.score['sparse_categorical_crossentropy']:.3f}.h5"
         else:
-            file_path = f"models/final/{self.seq_info}__{self.get_model_info_str()}__{self.max_epochs}-{self.score['RSquaredMetric']:.3f}.h5"
+            file_path = f"{os.environ['WORKSPACE']}/models/final/{self.seq_info}__{self.get_model_info_str()}__{self.max_epochs}-{self.score['RSquaredMetric']:.3f}.h5"
         self.model.save_weights(file_path)
         print(f"Saved model weights to: {file_path}")
 

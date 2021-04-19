@@ -184,15 +184,32 @@ def do_reg_simulation(predictions: np.ndarray, test_y: np.ndarray, forecast_peri
     plt.draw()
 
 
-def get_stats(predictions: np.ndarray, actual: np.ndarray, is_classification: bool):
+def get_stats(predictions: np.ndarray, actual: np.ndarray, is_classification: bool, percentile = 100.0):
     stats = {}
     
+    
     if is_classification:
-        stats["accuracy"] = get_accuracy(predictions, actual)
+
+        difs = np.array([abs(x - y) for x, y in predictions])
+        difs1 = np.array([[abs(x - y),abs(x - y)] for x, y in predictions])
+        min_dif = np.percentile(difs, 100.0 - percentile)
+        act, pred = [], []
+        for i in range(len(predictions)):
+            if abs(predictions[i][0] - predictions[i][1]) > min_dif:
+                act.append(actual[i])
+                pred.append(predictions[i])
+        act, pred = np.array(act), np.array(pred)
+        stats["accuracy"] = get_accuracy(pred, act)
         scce = tf.keras.losses.SparseCategoricalCrossentropy()
-        stats["sparse_categorical_entropy"] = float(scce(actual, predictions).numpy())
+        stats["sparse_categorical_entropy"] = float(scce(act, pred).numpy())
 
     else:
+        upper = np.percentile(predictions, 100.0 - percentile / 2)
+        lower = np.percentile(predictions, percentile / 2)
+        
+        actual = np.ma.masked_where(predictions.flatten() >= upper or predictions.flatten() <= lower, actual)
+        predictions = np.ma.masked_where(predictions >= upper or predictions <= lower, predictions)
+        
         pred = predictions.flatten()
         stats["mae"] = (np.absolute(pred - actual)).mean()
         correlation_matrix = np.corrcoef(pred, actual)
@@ -310,10 +327,14 @@ def test_model():
     predictions = model.predict(test_x)
 
     stats = get_stats(predictions, test_y, seq_info.is_classification)
-    print(f"(Test Data) Stats:")
+    print(f"\n(Test Data) Stats:")
     for stat, value in stats.items():
         print(f"{stat}: {value}")
     percentile = 20
+    stats = get_stats(predictions, test_y, seq_info.is_classification, percentile)
+    print(f"\n(Test Data) Stats at {percentile}th percentile:")
+    for stat, value in stats.items():
+        print(f"{stat}: {value}")
     if seq_info.is_classification:
         print(f"Accuracy at {percentile} percentile is {get_accuracy(predictions, test_y, percentile)}")
     else:

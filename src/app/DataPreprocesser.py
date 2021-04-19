@@ -70,9 +70,9 @@ class DataPreprocesser():
         remove_arr = one_indexes if len(one_indexes) > len(zero_indexes) else zero_indexes
         dif = abs(len(one_indexes) - len(zero_indexes))
 
-        print(f"Num 1s: {len(one_indexes)}")
-        print(f"Num 0s: {len(zero_indexes)}")
-        print(f"Len x: {len(sequences_x)} --- Len y: {len(sequences_y)}")
+        # print(f"Num 1s: {len(one_indexes)}")
+        # print(f"Num 0s: {len(zero_indexes)}")
+        # print(f"Len x: {len(sequences_x)} --- Len y: {len(sequences_y)}")
 
         random.shuffle(remove_arr) # Shuffle removal order
         for i in range(dif):
@@ -89,9 +89,9 @@ class DataPreprocesser():
             if target == 1: one_indexes.append(index)
             else: zero_indexes.append(index)
 
-        print(f"AFTER Num 1s: {len(one_indexes)}")
-        print(f"AFTER Num 0s: {len(zero_indexes)}")
-        print(f"AFTER Len x: {len(sequences_x)} --- Len y: {len(sequences_y)}")
+        # print(f"AFTER Num 1s: {len(one_indexes)}")
+        # print(f"AFTER Num 0s: {len(zero_indexes)}")
+        # print(f"AFTER Len x: {len(sequences_x)} --- Len y: {len(sequences_y)}")
 
 
         return sequences_x, sequences_y
@@ -240,10 +240,8 @@ class DataPreprocesser():
         self.has_loaded = True
 
     def _generate_df(self):
-        print("Generating new arrays of sequences for training...")
+        print("Generating new sequences for training...")
         self.df = self._get_main_dataframe()
-        self.print_df()
-        self.print_df_no_std()
         self._preprocess_df()    
 
 
