@@ -5,12 +5,12 @@
     "python.envFile": "${workspaceFolder}/.env",
     "python.venvPath": "${workspaceFolder}/venv",
     "python.analysis.cachingLevel": "Library",
-    "python.linting.enabled": true,
+    "python.linting.enabled": false,
     "mypy.targets": [
         "./src/"
     ],
     "git.ignoreLimitWarning": true,
     "python.formatting.provider": "none",
-    "python.languageServer": "Pylance",
-    "python.linting.pylintEnabled": true
+    "python.languageServer": "Default",
+    "python.linting.pylintEnabled": false
 }

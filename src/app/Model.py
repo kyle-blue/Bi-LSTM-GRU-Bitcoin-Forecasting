@@ -5,6 +5,7 @@ from tensorflow.python.keras.models import Sequential
 from tensorflow.python.keras.layers import Dense, Dropout, BatchNormalization, LSTM, GRU, CuDNNLSTM, CuDNNGRU, Bidirectional
 from tensorflow.python.keras.callbacks import TensorBoard, EarlyStopping
 from tensorflow.python.client import device_lib
+from tensorflow.python.keras.optimizers import adam_v2
 import numpy as np
 import os
 
@@ -118,7 +119,7 @@ class Model():
         else:
             self.model.add(Dense(1))
 
-        adam = tf.keras.optimizers.Adam(learning_rate=self.initial_learn_rate)
+        adam = adam_v2.Adam(learning_rate=self.initial_learn_rate)
 
 
         if self.is_classification:
